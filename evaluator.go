@@ -55,6 +55,7 @@ ForbidLoop:
 			for _, stmtCondition := range stmt.Conditions {
 				//stmtCondition.Type
 				for len(stmtCondition.Sequence) > 1 {
+					stmtCondition.ApplyOrderOfOperationsParenthesis()
 					stmtCondition, err = e.reduce(stmtCondition, principal, action, resource, context)
 					if err != nil {
 						return false, err
@@ -113,6 +114,7 @@ PermitLoop:
 
 			for _, stmtCondition := range stmt.Conditions {
 				for len(stmtCondition.Sequence) > 1 {
+					stmtCondition.ApplyOrderOfOperationsParenthesis()
 					stmtCondition, err = e.reduce(stmtCondition, principal, action, resource, context)
 					if err != nil {
 						return false, err
@@ -148,6 +150,10 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 		return cc, err
 	}
 
+	if !(len(cc.Sequence) > 1) {
+		return cc, nil
+	}
+
 	seqLhs, err := cc.Shift()
 	if err != nil {
 		return cc, err
@@ -174,21 +180,25 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 				if seqOper.Token == EQUALITY {
 					if seqLhs.Token == seqRhs.Token {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token == INEQUALITY {
 					if seqLhs.Token != seqRhs.Token {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else {
@@ -197,11 +207,13 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 			} else {
 				if seqOper.Token == EQUALITY { // equality of two different types is always false
 					cc.Unshift(SequenceItem{
-						Token: FALSE,
+						Token:   FALSE,
+						Literal: "false",
 					})
 				} else if seqOper.Token == INEQUALITY { // inequality of two different types is always true
 					cc.Unshift(SequenceItem{
-						Token: TRUE,
+						Token:   TRUE,
+						Literal: "true",
 					})
 				} else {
 					return cc, fmt.Errorf("unreachable code")
@@ -222,21 +234,25 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 				if seqOper.Token == AND {
 					if seqLhs.Token == TRUE && seqRhs.Token == TRUE {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token == OR {
 					if seqLhs.Token == TRUE || seqRhs.Token == TRUE {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else {
@@ -253,8 +269,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 		if err != nil {
 			return cc, err
 		}
-		// TODO: other operators
-		if seqOper.Token == EQUALITY || seqOper.Token == INEQUALITY || seqOper.Token == LT || seqOper.Token == LTE || seqOper.Token == GT || seqOper.Token == GTE {
+		if seqOper.Token == EQUALITY || seqOper.Token == INEQUALITY || seqOper.Token == LT || seqOper.Token == LTE || seqOper.Token == GT || seqOper.Token == GTE || seqOper.Token == PLUS || seqOper.Token == DASH || seqOper.Token == MULTIPLIER {
 			cc, err = e.reduceParen(cc, principal, action, resource, context)
 			if err != nil {
 				return cc, err
@@ -278,74 +293,103 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 				if seqOper.Token == EQUALITY {
 					if lhsL == rhsL {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token == INEQUALITY {
 					if lhsL != rhsL {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token == LT {
 					if lhsL < rhsL {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token < LTE {
 					if lhsL <= rhsL {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token == GT {
 					if lhsL > rhsL {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
 				} else if seqOper.Token == GTE {
 					if lhsL >= rhsL {
 						cc.Unshift(SequenceItem{
-							Token: TRUE,
+							Token:   TRUE,
+							Literal: "true",
 						})
 					} else {
 						cc.Unshift(SequenceItem{
-							Token: FALSE,
+							Token:   FALSE,
+							Literal: "false",
 						})
 					}
+				} else if seqOper.Token == PLUS {
+					cc.Unshift(SequenceItem{
+						Token:   INT,
+						Literal: strconv.FormatInt(lhsL+rhsL, 10),
+					})
+				} else if seqOper.Token == DASH {
+					cc.Unshift(SequenceItem{
+						Token:   INT,
+						Literal: strconv.FormatInt(lhsL-rhsL, 10),
+					})
+				} else if seqOper.Token == MULTIPLIER {
+					cc.Unshift(SequenceItem{
+						Token:   INT,
+						Literal: strconv.FormatInt(lhsL*rhsL, 10),
+					})
 				} else {
 					return cc, fmt.Errorf("unreachable code")
 				}
 			} else {
 				if seqOper.Token == EQUALITY { // equality of two different types is always false
 					cc.Unshift(SequenceItem{
-						Token: FALSE,
+						Token:   FALSE,
+						Literal: "false",
 					})
 				} else if seqOper.Token == INEQUALITY { // inequality of two different types is always true
 					cc.Unshift(SequenceItem{
-						Token: TRUE,
+						Token:   TRUE,
+						Literal: "true",
 					})
 				} else {
 					return cc, fmt.Errorf("cannot perform operation on two different data types")
@@ -389,7 +433,7 @@ func (e *Evaluator) reduceParen(cc ConditionClause, principal, action, resource,
 	var err error
 
 	subcc := ConditionClause{
-		Sequence: cc.Sequence[1 : i-1],
+		Sequence: cc.Sequence[1:i],
 	}
 	for len(subcc.Sequence) > 1 {
 		subcc, err = e.reduce(subcc, principal, action, resource, context)

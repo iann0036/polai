@@ -155,7 +155,7 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 				ch = s.read()
 			}
 			s.unread()
-			return WHITESPC, lit
+			return COMMENT, lit
 		}
 	}
 
@@ -233,6 +233,10 @@ func (s *Scanner) scanIdent() (tok Token, lit string) {
 		return THEN, buf.String()
 	case "else":
 		return ELSE, buf.String()
+	case "true":
+		return TRUE, buf.String()
+	case "false":
+		return FALSE, buf.String()
 	}
 
 	// Otherwise return as a regular identifier.

@@ -39,6 +39,117 @@ func (cc *ConditionClause) Unshift(item SequenceItem) {
 	cc.Sequence = append([]SequenceItem{item}, cc.Sequence...)
 }
 
+func (cc *ConditionClause) ApplyOrderOfOperationsParenthesis() {
+	newS := []SequenceItem{
+		{
+			Token:   LEFT_PAREN,
+			Literal: "(",
+		},
+		{
+			Token:   LEFT_PAREN,
+			Literal: "(",
+		},
+		{
+			Token:   LEFT_PAREN,
+			Literal: "(",
+		},
+		{
+			Token:   LEFT_PAREN,
+			Literal: "(",
+		},
+	}
+
+	for _, item := range cc.Sequence {
+		if item.Token == PLUS || item.Token == DASH {
+			newS = append(newS, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			})
+		} else if item.Token == MULTIPLIER {
+			newS = append(newS, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			})
+		} else if item.Token == EQUALITY || item.Token == INEQUALITY || item.Token == IN || item.Token == LT || item.Token == LTE || item.Token == GT || item.Token == GTE {
+			newS = append(newS, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			})
+		} else if item.Token == LEFT_PAREN {
+			newS = append(newS, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			})
+		} else if item.Token == RIGHT_PAREN {
+			newS = append(newS, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			})
+		} else {
+			newS = append(newS, item)
+		}
+	}
+
+	cc.Sequence = append(newS, SequenceItem{
+		Token:   RIGHT_PAREN,
+		Literal: ")",
+	}, SequenceItem{
+		Token:   RIGHT_PAREN,
+		Literal: ")",
+	}, SequenceItem{
+		Token:   RIGHT_PAREN,
+		Literal: ")",
+	}, SequenceItem{
+		Token:   RIGHT_PAREN,
+		Literal: ")",
+	})
+}
+
 func (cc *ConditionClause) ToString() string {
 	ret := fmt.Sprintf("%q", cc.Type)
 
@@ -275,7 +386,7 @@ func (p *Parser) scan() (tok Token, lit string) {
 // scanIgnoreWhitespace scans the next non-whitespace token.
 func (p *Parser) scanIgnoreWhitespace() (tok Token, lit string) {
 	tok, lit = p.scan()
-	if tok == WHITESPC {
+	for tok == WHITESPC || tok == COMMENT {
 		tok, lit = p.scan()
 	}
 	return
@@ -352,7 +463,7 @@ func (p *Parser) scanEntity() (entityName string, err error) {
 		if tok == IDENT {
 			entityName += lit
 			if tok, lit = p.scan(); tok != NAMESPACE {
-				return entityName, fmt.Errorf("found %q, expected namespace separator", lit)
+				return entityName, fmt.Errorf("found %q, expected subnamespace separator", lit)
 			}
 			entityName += "::"
 		} else if tok == DBLQUOTESTR {

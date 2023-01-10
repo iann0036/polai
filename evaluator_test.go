@@ -124,6 +124,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// Basic when with literal true
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				true
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// Basic when with int equality
 		{
 			s: `
@@ -197,6 +213,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				(false || true) && (true && true)
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Math order of operations
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				2 + 3 * 4 + 5 == 19
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",

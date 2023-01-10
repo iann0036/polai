@@ -13,6 +13,7 @@ const (
 	IDENT       // unknown identifier
 	INT         // 123 | -123
 	DBLQUOTESTR // "...abc..."
+	COMMENT     // // ...abc...
 
 	// Misc characters
 	LEFT_PAREN  // (
