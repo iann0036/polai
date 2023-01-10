@@ -6,6 +6,30 @@ import (
 	"strconv"
 )
 
+var OP_PRECEDENCE = map[Token]int{
+	AND:        1,
+	OR:         1,
+	EQUALITY:   2,
+	INEQUALITY: 2,
+	LT:         2,
+	LTE:        2,
+	GT:         2,
+	GTE:        2,
+	IN:         2,
+	PLUS:       3,
+	DASH:       3,
+	MULTIPLIER: 4,
+}
+
+var LEFT_ASSOCIATIVE = map[Token]bool{
+	LT:   true,
+	LTE:  true,
+	GT:   true,
+	GTE:  true,
+	IN:   true,
+	DASH: true,
+}
+
 // Evaluator represents an evaluator.
 type Evaluator struct {
 	p *Parser
@@ -142,6 +166,55 @@ PermitLoop:
 	}
 
 	return false, nil // implicit deny
+}
+
+func (e *Evaluator) opp(cc ConditionClause, principal, action, resource, context string) (bool, error) {
+	var outputQueue []SequenceItem
+	var operatorStack []SequenceItem
+
+	for _, s := range cc.Sequence {
+		switch s.Token {
+		case TRUE, FALSE, INT, DBLQUOTESTR:
+			outputQueue = append(outputQueue, s)
+		case LEFT_PAREN:
+			operatorStack = append(operatorStack, s)
+		case RIGHT_PAREN:
+			for {
+				if len(operatorStack) < 1 {
+					return false, fmt.Errorf("mismatched parenthesis")
+				}
+				pop := operatorStack[len(operatorStack)-1]
+				operatorStack = operatorStack[:len(operatorStack)-1]
+
+				if pop.Token != LEFT_PAREN {
+					outputQueue = append(outputQueue, pop)
+				} else {
+					break
+				}
+			}
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN:
+			for OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
+				pop := operatorStack[len(operatorStack)-1]
+				operatorStack = operatorStack[:len(operatorStack)-1]
+				outputQueue = append(outputQueue, pop)
+			}
+			operatorStack = append(operatorStack, s)
+		default:
+			return false, fmt.Errorf("unknown token: %q", s.Token)
+		}
+	}
+	for len(operatorStack) > 0 {
+		pop := operatorStack[len(operatorStack)-1]
+		operatorStack = operatorStack[:len(operatorStack)-1]
+		if pop.Token == LEFT_PAREN {
+			return false, fmt.Errorf("mismatched parenthesis")
+		}
+		outputQueue = append(outputQueue, pop)
+	}
+
+	// TODO
+
+	return false, nil
 }
 
 func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, context string) (ConditionClause, error) {
@@ -290,7 +363,8 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 					return cc, err
 				}
 
-				if seqOper.Token == EQUALITY {
+				switch seqOper.Token {
+				case EQUALITY:
 					if lhsL == rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
@@ -302,7 +376,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token == INEQUALITY {
+				case INEQUALITY:
 					if lhsL != rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
@@ -314,7 +388,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token == LT {
+				case LT:
 					if lhsL < rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
@@ -326,7 +400,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token == LTE {
+				case LTE:
 					if lhsL <= rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
@@ -338,7 +412,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token == GT {
+				case GT:
 					if lhsL > rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
@@ -350,7 +424,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token == GTE {
+				case GTE:
 					if lhsL >= rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
@@ -362,22 +436,22 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token == PLUS {
+				case PLUS:
 					cc.Unshift(SequenceItem{
 						Token:   INT,
 						Literal: strconv.FormatInt(lhsL+rhsL, 10),
 					})
-				} else if seqOper.Token == DASH {
+				case DASH:
 					cc.Unshift(SequenceItem{
 						Token:   INT,
 						Literal: strconv.FormatInt(lhsL-rhsL, 10),
 					})
-				} else if seqOper.Token == MULTIPLIER {
+				case MULTIPLIER:
 					cc.Unshift(SequenceItem{
 						Token:   INT,
 						Literal: strconv.FormatInt(lhsL*rhsL, 10),
 					})
-				} else {
+				default:
 					return cc, fmt.Errorf("unreachable code")
 				}
 			} else {
