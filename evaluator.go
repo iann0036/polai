@@ -146,6 +146,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	var outputQueue []SequenceItem
 	var operatorStack []SequenceItem
 
+	// restructure to rpn using shunting yard
 	for _, s := range cc.Sequence {
 		switch s.Token {
 		case TRUE, FALSE, INT, DBLQUOTESTR:
@@ -325,6 +326,25 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						Literal: "false",
 					})
 				}
+			} else if lhs.Token == DBLQUOTESTR {
+				if rhs.Token == DBLQUOTESTR {
+					if lhs.Literal == rhs.Literal {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   FALSE,
+							Literal: "false",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					})
+				}
 			} else {
 				return false, fmt.Errorf("unknown token: %q", s.Token)
 			}
@@ -356,6 +376,25 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						return false, err
 					}
 					if lhsL == rhsL {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   FALSE,
+							Literal: "false",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   TRUE,
+						Literal: "true",
+					})
+				}
+			} else if lhs.Token == DBLQUOTESTR {
+				if rhs.Token == DBLQUOTESTR {
+					if lhs.Literal == rhs.Literal {
 						evalStack = append(evalStack, SequenceItem{
 							Token:   FALSE,
 							Literal: "false",
