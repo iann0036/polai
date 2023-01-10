@@ -203,6 +203,7 @@ func (e *Evaluator) opp(cc ConditionClause, principal, action, resource, context
 			return false, fmt.Errorf("unknown token: %q", s.Token)
 		}
 	}
+
 	for len(operatorStack) > 0 {
 		pop := operatorStack[len(operatorStack)-1]
 		operatorStack = operatorStack[:len(operatorStack)-1]
@@ -212,7 +213,111 @@ func (e *Evaluator) opp(cc ConditionClause, principal, action, resource, context
 		outputQueue = append(outputQueue, pop)
 	}
 
-	// TODO
+	var evalStack []SequenceItem
+	var lhs SequenceItem
+	var rhs SequenceItem
+	for _, s := range outputQueue {
+		switch s.Token {
+		case TRUE, FALSE, INT, DBLQUOTESTR:
+			evalStack = append(evalStack, s)
+		case AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN: // TODO
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(operatorStack)-2]
+		case EQUALITY:
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(operatorStack)-2]
+
+			if lhs.Token == TRUE || lhs.Token == FALSE {
+				if rhs.Token == lhs.Token {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   TRUE,
+						Literal: "true",
+					})
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					})
+				}
+			} else if lhs.Token == INT {
+				if rhs.Token == INT {
+					lhsL, err := strconv.ParseInt(lhs.Literal, 10, 64)
+					if err != nil {
+						return false, err
+					}
+					rhsL, err := strconv.ParseInt(rhs.Literal, 10, 64)
+					if err != nil {
+						return false, err
+					}
+					if lhsL == rhsL {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   FALSE,
+							Literal: "false",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					})
+				}
+			}
+		case INEQUALITY:
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(operatorStack)-2]
+
+			if lhs.Token == TRUE || lhs.Token == FALSE {
+				if rhs.Token == lhs.Token {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					})
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   TRUE,
+						Literal: "true",
+					})
+				}
+			} else if lhs.Token == INT {
+				if rhs.Token == INT {
+					lhsL, err := strconv.ParseInt(lhs.Literal, 10, 64)
+					if err != nil {
+						return false, err
+					}
+					rhsL, err := strconv.ParseInt(rhs.Literal, 10, 64)
+					if err != nil {
+						return false, err
+					}
+					if lhsL == rhsL {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   FALSE,
+							Literal: "false",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   TRUE,
+						Literal: "true",
+					})
+				}
+			}
+		default:
+			return false, fmt.Errorf("unknown token: %q", s.Token)
+		}
+	}
 
 	return false, nil
 }
