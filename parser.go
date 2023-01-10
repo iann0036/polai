@@ -57,6 +57,10 @@ func (cc *ConditionClause) ApplyOrderOfOperationsParenthesis() {
 			Token:   LEFT_PAREN,
 			Literal: "(",
 		},
+		{
+			Token:   LEFT_PAREN,
+			Literal: "(",
+		},
 	}
 
 	for _, item := range cc.Sequence {
@@ -102,8 +106,37 @@ func (cc *ConditionClause) ApplyOrderOfOperationsParenthesis() {
 				Token:   LEFT_PAREN,
 				Literal: "(",
 			})
+		} else if item.Token == AND || item.Token == OR {
+			newS = append(newS, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
+			}, item, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			})
 		} else if item.Token == LEFT_PAREN {
 			newS = append(newS, SequenceItem{
+				Token:   LEFT_PAREN,
+				Literal: "(",
+			}, item, SequenceItem{
 				Token:   LEFT_PAREN,
 				Literal: "(",
 			}, item, SequenceItem{
@@ -129,6 +162,9 @@ func (cc *ConditionClause) ApplyOrderOfOperationsParenthesis() {
 			}, item, SequenceItem{
 				Token:   RIGHT_PAREN,
 				Literal: ")",
+			}, item, SequenceItem{
+				Token:   RIGHT_PAREN,
+				Literal: ")",
 			})
 		} else {
 			newS = append(newS, item)
@@ -136,6 +172,9 @@ func (cc *ConditionClause) ApplyOrderOfOperationsParenthesis() {
 	}
 
 	cc.Sequence = append(newS, SequenceItem{
+		Token:   RIGHT_PAREN,
+		Literal: ")",
+	}, SequenceItem{
 		Token:   RIGHT_PAREN,
 		Literal: ")",
 	}, SequenceItem{

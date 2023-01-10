@@ -74,7 +74,7 @@ ForbidLoop:
 						return false, fmt.Errorf("reduced statement condition clause is not bool")
 					}
 				} else {
-					return false, fmt.Errorf("unreachable code")
+					return false, fmt.Errorf("unreachable code 1")
 				}
 			}
 
@@ -326,7 +326,7 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 							Literal: "false",
 						})
 					}
-				} else if seqOper.Token < LTE {
+				} else if seqOper.Token == LTE {
 					if lhsL <= rhsL {
 						cc.Unshift(SequenceItem{
 							Token:   TRUE,
