@@ -148,12 +148,28 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				action,
 				resource
 			) when {
-				123 == 124
+				234 == 235
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",
 			resource:       "Resource::\"MyResource\"",
 			expectedResult: false,
+		},
+
+		// Mix eventual types
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				2>3 || 345 == 345 && true
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
 		},
 
 		// Complex long operators
@@ -165,6 +181,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				2 > 1 && 3 < 4 && 1 != 2 && 2 == 2 && 1 >= 1 && 2 <= 3
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Boolean logic with parameter groups
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				(false || true) && (true && true)
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",

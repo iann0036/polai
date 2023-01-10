@@ -39,6 +39,16 @@ func (cc *ConditionClause) Unshift(item SequenceItem) {
 	cc.Sequence = append([]SequenceItem{item}, cc.Sequence...)
 }
 
+func (cc *ConditionClause) ToString() string {
+	ret := fmt.Sprintf("%q", cc.Type)
+
+	for _, seqItem := range cc.Sequence {
+		ret += seqItem.Literal
+	}
+
+	return ret
+}
+
 type SequenceItem struct {
 	Token    Token
 	Literal  string

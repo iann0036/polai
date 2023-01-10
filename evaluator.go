@@ -112,7 +112,6 @@ PermitLoop:
 			}
 
 			for _, stmtCondition := range stmt.Conditions {
-				//stmtCondition.Type
 				for len(stmtCondition.Sequence) > 1 {
 					stmtCondition, err = e.reduce(stmtCondition, principal, action, resource, context)
 					if err != nil {
@@ -136,11 +135,11 @@ PermitLoop:
 				}
 			}
 
-			return true, nil
+			return true, nil // explicit allow
 		}
 	}
 
-	return false, nil
+	return false, nil // implicit deny
 }
 
 func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, context string) (ConditionClause, error) {
@@ -363,19 +362,31 @@ func (e *Evaluator) reduce(cc ConditionClause, principal, action, resource, cont
 }
 
 func (e *Evaluator) reduceParen(cc ConditionClause, principal, action, resource, context string) (ConditionClause, error) {
-	var err error
-
-	if cc.Sequence[0].Token != LEFT_PAREN {
+	if len(cc.Sequence) < 1 {
+		return cc, nil
+	} else if cc.Sequence[0].Token != LEFT_PAREN {
 		return cc, nil
 	}
 
-	i := len(cc.Sequence) - 1
-	for cc.Sequence[i].Token != RIGHT_PAREN {
-		i--
-		if i < 0 {
+	i := 0
+	parenLevel := 1
+	for {
+		i++
+		if i >= len(cc.Sequence) {
 			return cc, fmt.Errorf("found left parenthesis without matching right parenthesis")
 		}
+		if cc.Sequence[i].Token == LEFT_PAREN {
+			parenLevel++
+		}
+		if cc.Sequence[i].Token == RIGHT_PAREN {
+			parenLevel--
+			if parenLevel == 0 {
+				break
+			}
+		}
 	}
+
+	var err error
 
 	subcc := ConditionClause{
 		Sequence: cc.Sequence[1 : i-1],
