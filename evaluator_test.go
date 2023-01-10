@@ -124,22 +124,6 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Basic when with literal true
-		{
-			s: `
-			permit (
-				principal,
-				action,
-				resource
-			) when {
-				true
-			};`,
-			principal:      "Principal::\"MyPrincipal\"",
-			action:         "Action::\"MyAction\"",
-			resource:       "Resource::\"MyResource\"",
-			expectedResult: true,
-		},
-
 		// Basic when with int equality
 		{
 			s: `
@@ -149,6 +133,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				123 == 123
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Basic when with literal true
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				true
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",
