@@ -32,12 +32,21 @@ var LEFT_ASSOCIATIVE = map[Token]bool{
 
 // Evaluator represents an evaluator.
 type Evaluator struct {
-	p *Parser
+	p  *Parser
+	es *EntityStore
 }
 
 // NewEvaluator returns a new instance of Evaluator.
 func NewEvaluator(policyReader io.Reader) *Evaluator {
 	return &Evaluator{p: NewParser(policyReader)}
+}
+
+func (e *Evaluator) SetEntities(entityReader io.Reader) {
+	if e.es == nil {
+		e.es = NewEntityStore(entityReader)
+	} else {
+		e.es.SetEntities(entityReader)
+	}
 }
 
 func (e *Evaluator) Evaluate(principal, action, resource, context string) (bool, error) {
@@ -51,33 +60,74 @@ ForbidLoop:
 	for _, stmt := range *policyStatements {
 		if stmt.Effect == FORBID {
 			if !stmt.AnyPrincipal {
-				// TODO: PrincipalParent
-				if stmt.Principal != "" && stmt.Principal != principal {
-					continue
+				if stmt.Principal != "" {
+					if stmt.Principal != principal {
+						continue
+					}
+				} else if stmt.PrincipalParent != "" {
+					if stmt.PrincipalParent != principal {
+						if e.es == nil {
+							continue
+						} else {
+							descendants, err := e.es.GetEntityDescendents([]string{stmt.PrincipalParent})
+							if err != nil {
+								return false, err
+							}
+							if !containsEntity(descendants, principal) {
+								continue
+							}
+						}
+					}
+				} else {
+					return false, fmt.Errorf("unknown policy state")
 				}
 			}
 			if !stmt.AnyAction {
-				// TODO: ActionParent
-				skip := true
-				for _, stmtAction := range stmt.Actions {
-					if action == stmtAction {
-						skip = false
-						break
+				if stmt.Action != "" {
+					if stmt.Action != action {
+						continue
 					}
-				}
-				if skip {
-					continue
+				} else { // assumed ActionParent populated
+					if !contains(stmt.ActionParents, action) {
+						if e.es == nil {
+							continue
+						} else {
+							descendants, err := e.es.GetEntityDescendents(stmt.ActionParents)
+							if err != nil {
+								return false, err
+							}
+							if !containsEntity(descendants, action) {
+								continue
+							}
+						}
+					}
 				}
 			}
 			if !stmt.AnyResource {
-				// TODO: ResourceParent
-				if stmt.Resource != "" && stmt.Resource != resource {
-					continue
+				if stmt.Resource != "" {
+					if stmt.Resource != resource {
+						continue
+					}
+				} else if stmt.ResourceParent != "" {
+					if stmt.Resource != resource {
+						if e.es == nil {
+							continue
+						} else {
+							descendants, err := e.es.GetEntityDescendents([]string{stmt.ResourceParent})
+							if err != nil {
+								return false, err
+							}
+							if !containsEntity(descendants, resource) {
+								continue
+							}
+						}
+					}
+				} else {
+					return false, fmt.Errorf("unknown policy state")
 				}
 			}
 
 			for _, stmtCondition := range stmt.Conditions {
-				//stmtCondition.Type
 				condEvalResult, err := e.condEval(stmtCondition, principal, action, resource, context)
 				if err != nil {
 					return false, err
@@ -89,7 +139,7 @@ ForbidLoop:
 				}
 			}
 
-			return false, nil
+			return false, nil // explicit forbid
 		}
 	}
 
@@ -98,28 +148,70 @@ PermitLoop:
 	for _, stmt := range *policyStatements {
 		if stmt.Effect == PERMIT {
 			if !stmt.AnyPrincipal {
-				// TODO: PrincipalParent
-				if stmt.Principal != "" && stmt.Principal != principal {
-					continue
+				if stmt.Principal != "" {
+					if stmt.Principal != principal {
+						continue
+					}
+				} else if stmt.PrincipalParent != "" {
+					if stmt.PrincipalParent != principal {
+						if e.es == nil {
+							continue
+						} else {
+							descendants, err := e.es.GetEntityDescendents([]string{stmt.PrincipalParent})
+							if err != nil {
+								return false, err
+							}
+							if !containsEntity(descendants, principal) {
+								continue
+							}
+						}
+					}
+				} else {
+					return false, fmt.Errorf("unknown policy state")
 				}
 			}
 			if !stmt.AnyAction {
-				// TODO: ActionParent
-				skip := true
-				for _, stmtAction := range stmt.Actions {
-					if action == stmtAction {
-						skip = false
-						break
+				if stmt.Action != "" {
+					if stmt.Action != action {
+						continue
 					}
-				}
-				if skip {
-					continue
+				} else { // assumed ActionParent populated
+					if !contains(stmt.ActionParents, action) {
+						if e.es == nil {
+							continue
+						} else {
+							descendants, err := e.es.GetEntityDescendents(stmt.ActionParents)
+							if err != nil {
+								return false, err
+							}
+							if !containsEntity(descendants, action) {
+								continue
+							}
+						}
+					}
 				}
 			}
 			if !stmt.AnyResource {
-				// TODO: ResourceParent
-				if stmt.Resource != "" && stmt.Resource != resource {
-					continue
+				if stmt.Resource != "" {
+					if stmt.Resource != resource {
+						continue
+					}
+				} else if stmt.ResourceParent != "" {
+					if stmt.Resource != resource {
+						if e.es == nil {
+							continue
+						} else {
+							descendants, err := e.es.GetEntityDescendents([]string{stmt.ResourceParent})
+							if err != nil {
+								return false, err
+							}
+							if !containsEntity(descendants, resource) {
+								continue
+							}
+						}
+					}
+				} else {
+					return false, fmt.Errorf("unknown policy state")
 				}
 			}
 

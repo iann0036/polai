@@ -112,7 +112,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				{
 					Effect:       polai.PERMIT,
 					Principal:    "Namespace::\"Identifier\"",
-					Actions:      []string{"Namespace2::\"Identifier2\""},
+					Action:       "Namespace2::\"Identifier2\"",
 					Resource:     "Namespace3::\"Identifier3\"",
 					AnyPrincipal: false,
 					AnyAction:    false,
@@ -131,11 +131,11 @@ func TestParser_ParseStatement(t *testing.T) {
 			);`,
 			stmts: &[]polai.PolicyStatement{
 				{
-					Effect:       polai.PERMIT,
-					Actions:      []string{"Namespace::\"Identifier\"", "Namespace2::\"Identifier2\""},
-					AnyPrincipal: true,
-					AnyAction:    false,
-					AnyResource:  true,
+					Effect:        polai.PERMIT,
+					ActionParents: []string{"Namespace::\"Identifier\"", "Namespace2::\"Identifier2\""},
+					AnyPrincipal:  true,
+					AnyAction:     false,
+					AnyResource:   true,
 				},
 			},
 		},
@@ -152,7 +152,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				{
 					Effect:          polai.PERMIT,
 					PrincipalParent: "Namespace::\"Identifier\"",
-					ActionParent:    "Namespace2::\"Identifier2\"",
+					ActionParents:   []string{"Namespace2::\"Identifier2\""},
 					ResourceParent:  "Namespace3::\"Identifier3\"",
 					AnyPrincipal:    false,
 					AnyAction:       false,

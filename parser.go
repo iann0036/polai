@@ -12,8 +12,8 @@ type PolicyStatement struct {
 	Principal       string
 	PrincipalParent string
 	AnyAction       bool
-	Actions         []string
-	ActionParent    string
+	Action          string
+	ActionParents   []string
 	AnyResource     bool
 	Resource        string
 	ResourceParent  string
@@ -23,20 +23,6 @@ type PolicyStatement struct {
 type ConditionClause struct {
 	Type     Token
 	Sequence []SequenceItem
-}
-
-func (cc *ConditionClause) Shift() (SequenceItem, error) {
-	if len(cc.Sequence) < 1 {
-		return SequenceItem{}, fmt.Errorf("no tokens remaining")
-	}
-	ret := cc.Sequence[0]
-	cc.Sequence = cc.Sequence[1:]
-
-	return ret, nil
-}
-
-func (cc *ConditionClause) Unshift(item SequenceItem) {
-	cc.Sequence = append([]SequenceItem{item}, cc.Sequence...)
 }
 
 func (cc *ConditionClause) ToString() string {
@@ -148,7 +134,7 @@ func (p *Parser) Parse() (*[]PolicyStatement, error) {
 			if err != nil {
 				return nil, err
 			}
-			stmt.Actions = append(stmt.Actions, entityName)
+			stmt.Action = entityName
 
 			if tok, lit = p.scanIgnoreWhitespace(); tok != COMMA {
 				return nil, fmt.Errorf("found %q, expected comma", lit)
@@ -164,7 +150,7 @@ func (p *Parser) Parse() (*[]PolicyStatement, error) {
 				if err != nil {
 					return nil, err
 				}
-				stmt.ActionParent = entityName
+				stmt.ActionParents = []string{entityName}
 			} else if tok == LEFT_SQB {
 				tok = COMMA
 
@@ -177,7 +163,7 @@ func (p *Parser) Parse() (*[]PolicyStatement, error) {
 					if err != nil {
 						return nil, err
 					}
-					stmt.Actions = append(stmt.Actions, entityName)
+					stmt.ActionParents = append(stmt.ActionParents, entityName)
 
 					tok, lit = p.scanIgnoreWhitespace()
 				}
