@@ -236,6 +236,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// Entity equality
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				Principal::"MyPrincipal" == Principal::"MyPrincipal"
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// Errors
 		{s: `foo`, err: `found "foo", expected permit or forbid`},
 	}
