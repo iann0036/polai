@@ -17,6 +17,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		action         string
 		resource       string
 		context        string
+		entities       string
 		err            string
 	}{
 		// Basic permit
@@ -330,12 +331,200 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// in operator (scope)
+		{
+			s: `
+			permit (
+				principal in Principal::"Parent",
+				action in Action::"Parent",
+				resource in Resource::"Parent"
+			);`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"parents": [
+						"Principal::\"Parent\""
+					]
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"parents": [
+						"Action::\"Parent\""
+					]
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"parents": [
+						"Resource::\"Parent\""
+					]
+				}
+			]`,
+			expectedResult: false,
+		},
+
+		// in operator (condition)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal in Principal::"Parent" &&
+				action in Action::"Parent" &&
+				resource in Resource::"Parent"
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"parents": [
+						"Principal::\"Parent\""
+					]
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"parents": [
+						"Action::\"Parent\""
+					]
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"parents": [
+						"Resource::\"Parent\""
+					]
+				}
+			]`,
+			expectedResult: false,
+		},
+
+		// in operator (scope, deep)
+		{
+			s: `
+			permit (
+				principal in Principal::"Grandparent",
+				action in Action::"Grandparent",
+				resource in Resource::"Grandparent"
+			);`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"parents": [
+						"Principal::\"Parent\""
+					]
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"parents": [
+						"Action::\"Parent\""
+					]
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"parents": [
+						"Resource::\"Parent\""
+					]
+				},
+				{
+					"uid": "Principal::\"Parent\"",
+					"parents": [
+						"Principal::\"Grandparent\""
+					]
+				},
+				{
+					"uid": "Action::\"Parent\"",
+					"parents": [
+						"Action::\"Grandparent\""
+					]
+				},
+				{
+					"uid": "Resource::\"Parent\"",
+					"parents": [
+						"Resource::\"Grandparent\""
+					]
+				}
+			]`,
+			expectedResult: false,
+		},
+
+		// in operator (condition, deep)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal in Principal::"Grandparent" &&
+				action in Action::"Grandparent" &&
+				resource in Resource::"Grandparent"
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"parents": [
+						"Principal::\"Parent\""
+					]
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"parents": [
+						"Action::\"Parent\""
+					]
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"parents": [
+						"Resource::\"Parent\""
+					]
+				},
+				{
+					"uid": "Principal::\"Parent\"",
+					"parents": [
+						"Principal::\"Grandparent\""
+					]
+				},
+				{
+					"uid": "Action::\"Parent\"",
+					"parents": [
+						"Action::\"Grandparent\""
+					]
+				},
+				{
+					"uid": "Resource::\"Parent\"",
+					"parents": [
+						"Resource::\"Grandparent\""
+					]
+				}
+			]`,
+			expectedResult: false,
+		},
+
 		// Errors
 		{s: `foo`, err: `found "foo", expected permit or forbid`},
 	}
 
 	for i, tt := range tests {
-		result, err := polai.NewEvaluator(strings.NewReader(tt.s)).Evaluate(tt.principal, tt.action, tt.resource, tt.context)
+		e := polai.NewEvaluator(strings.NewReader(tt.s))
+		if tt.entities != "" {
+			e.SetEntities(strings.NewReader(tt.entities))
+		}
+		result, err := e.Evaluate(tt.principal, tt.action, tt.resource, tt.context)
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && tt.expectedResult != result {
