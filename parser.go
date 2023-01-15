@@ -36,9 +36,8 @@ func (cc *ConditionClause) ToString() string {
 }
 
 type SequenceItem struct {
-	Token    Token
-	Literal  string
-	IsEntity bool
+	Token   Token
+	Literal string
 }
 
 // Parser represents a parser.
@@ -301,8 +300,8 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 				return nil, err
 			}
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Literal:  entityName,
-				IsEntity: true,
+				Literal: entityName,
+				Token:   ENTITY,
 			})
 		// TODO: align possible token sequences to spec
 		case TRUE, FALSE, INT, DBLQUOTESTR, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, PERIOD, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:

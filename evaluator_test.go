@@ -124,6 +124,20 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// Scope with in entity (self)
+		{
+			s: `
+			permit (
+				principal in Namespace::"Identifier",
+				action in Namespace2::"Identifier2",
+				resource in Namespace3::"Identifier3"
+			);`,
+			principal:      "Namespace::\"Identifier\"",
+			action:         "Namespace2::\"Identifier2\"",
+			resource:       "Namespace3::\"Identifier3\"",
+			expectedResult: true,
+		},
+
 		// Basic when with int equality
 		{
 			s: `
@@ -245,6 +259,70 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				Principal::"MyPrincipal" == Principal::"MyPrincipal"
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Entity inequality
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				Principal::"MyPrincipal" != Principal::"MyPrincipal"
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
+		// Entity in (self)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				Principal::"MyPrincipal" in Principal::"MyPrincipal"
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Mismatch type equality
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				Principal::"MyPrincipal" == 123
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
+		// Mismatch type inequality
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				Principal::"MyPrincipal" != 123
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",

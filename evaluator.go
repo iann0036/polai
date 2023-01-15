@@ -241,7 +241,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	// restructure to rpn using shunting yard
 	for _, s := range cc.Sequence {
 		switch s.Token {
-		case TRUE, FALSE, INT, DBLQUOTESTR:
+		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY:
 			outputQueue = append(outputQueue, s)
 		case LEFT_PAREN:
 			operatorStack = append(operatorStack, s)
@@ -285,9 +285,53 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	var rhs SequenceItem
 	for _, s := range outputQueue {
 		switch s.Token {
-		case TRUE, FALSE, INT, DBLQUOTESTR:
+		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY:
 			evalStack = append(evalStack, s)
-		//case IN: // TODO
+		case IN:
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(evalStack)-2]
+
+			if lhs.Token == ENTITY {
+				if rhs.Token == ENTITY {
+					if lhs.Literal == rhs.Literal {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					} else {
+						if e.es == nil {
+							evalStack = append(evalStack, SequenceItem{
+								Token:   FALSE,
+								Literal: "false",
+							})
+						} else {
+							descendants, err := e.es.GetEntityDescendents([]string{rhs.Literal})
+							if err != nil {
+								return false, err
+							}
+							if containsEntity(descendants, lhs.Literal) {
+								evalStack = append(evalStack, SequenceItem{
+									Token:   TRUE,
+									Literal: "true",
+								})
+							} else {
+								evalStack = append(evalStack, SequenceItem{
+									Token:   FALSE,
+									Literal: "false",
+								})
+							}
+						}
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					})
+				}
+			} else {
+				return false, fmt.Errorf("unknown token: %q", s.Token)
+			}
 		case LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER:
 			rhs = evalStack[len(evalStack)-1]
 			lhs = evalStack[len(evalStack)-2]
@@ -437,6 +481,25 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						Literal: "false",
 					})
 				}
+			} else if lhs.Token == ENTITY {
+				if rhs.Token == ENTITY {
+					if lhs.Literal == rhs.Literal {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   FALSE,
+							Literal: "false",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					})
+				}
 			} else {
 				return false, fmt.Errorf("unknown token: %q", s.Token)
 			}
@@ -486,6 +549,25 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				}
 			} else if lhs.Token == DBLQUOTESTR {
 				if rhs.Token == DBLQUOTESTR {
+					if lhs.Literal == rhs.Literal {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   FALSE,
+							Literal: "false",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:   TRUE,
+							Literal: "true",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:   TRUE,
+						Literal: "true",
+					})
+				}
+			} else if lhs.Token == ENTITY {
+				if rhs.Token == ENTITY {
 					if lhs.Literal == rhs.Literal {
 						evalStack = append(evalStack, SequenceItem{
 							Token:   FALSE,
