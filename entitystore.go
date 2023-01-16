@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"reflect"
 
 	"golang.org/x/exp/maps"
 )
@@ -25,10 +27,11 @@ type complexEntityName struct {
 }
 
 type complexAttribute struct {
-	String  *string `json:"String"`
-	Long    *int64  `json:"Long"`
-	Boolean *bool   `json:"Boolean"`
-	// TODO: more
+	String  *string                 `json:"String"`
+	Long    *int64                  `json:"Long"`
+	Boolean *bool                   `json:"Boolean"`
+	Record  *map[string]interface{} `json:"Record"`
+	Set     *[]interface{}          `json:"Set"`
 }
 
 type Entity struct {
@@ -42,7 +45,8 @@ type Attribute struct {
 	StringValue  *string
 	LongValue    *int64
 	BooleanValue *bool
-	// TODO: more
+	RecordValue  *map[string]interface{}
+	SetValue     *[]interface{}
 }
 
 // EntityStore represents the complete set of known entities within the system.
@@ -65,8 +69,8 @@ func (e *EntityStore) SetEntities(r io.Reader) {
 // GetEntities retrieves all entities.
 func (e *EntityStore) GetEntities() ([]Entity, error) {
 	if e.entities == nil {
-		b, err := e.r.ReadBytes(byte(eof))
-		if err != nil {
+		b, err := ioutil.ReadAll(e.r)
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 
@@ -95,14 +99,23 @@ func (e *EntityStore) GetEntities() ([]Entity, error) {
 					case int64:
 						val := attrVal.(int64)
 						attribute.LongValue = &val
+					case float64:
+						val := int64(attrVal.(float64))
+						attribute.LongValue = &val
 					case string:
 						val := attrVal.(string)
 						attribute.StringValue = &val
 					case bool:
 						val := attrVal.(bool)
 						attribute.BooleanValue = &val
+					case map[string]interface{}:
+						val := attrVal.(map[string]interface{})
+						attribute.RecordValue = &val
+					case []interface{}:
+						val := attrVal.([]interface{})
+						attribute.SetValue = &val
 					default:
-						return nil, fmt.Errorf("unknown type in attribute block")
+						return nil, fmt.Errorf("unknown type in attribute block: %v (%s)", attrVal, reflect.TypeOf(attrVal).String())
 					}
 
 					attributes = append(attributes, attribute)
@@ -131,6 +144,8 @@ func (e *EntityStore) GetEntities() ([]Entity, error) {
 						BooleanValue: attrVal.Boolean,
 						StringValue:  attrVal.String,
 						LongValue:    attrVal.Long,
+						RecordValue:  attrVal.Record,
+						SetValue:     attrVal.Set,
 					})
 				}
 
@@ -153,7 +168,7 @@ func (e *EntityStore) GetEntityDescendents(parents []string) ([]Entity, error) {
 		return nil, err
 	}
 
-	var foundEntities map[string]Entity // using map[string] for dedup purposes
+	foundEntities := map[string]Entity{} // using map[string] for dedup purposes
 	i := 0
 	for i < len(parents) {
 		parent := parents[i]

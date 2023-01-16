@@ -65,6 +65,8 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 		return PLUS, lit
 	case '*':
 		return MULTIPLIER, lit
+	case '.':
+		return PERIOD, lit
 	case '<':
 		ch = s.read()
 		if ch == '=' {

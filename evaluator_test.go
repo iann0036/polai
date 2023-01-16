@@ -363,6 +363,41 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 					]
 				}
 			]`,
+			expectedResult: true,
+		},
+
+		// in operator (scope, invariant)
+		{
+			s: `
+			permit (
+				principal in Principal::"MyPrincipal",
+				action in Action::"MyAction",
+				resource in Resource::"MyResource"
+			);`,
+			principal: "Principal::\"Parent\"",
+			action:    "Action::\"Parent\"",
+			resource:  "Resource::\"Parent\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"parents": [
+						"Principal::\"Parent\""
+					]
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"parents": [
+						"Action::\"Parent\""
+					]
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"parents": [
+						"Resource::\"Parent\""
+					]
+				}
+			]`,
 			expectedResult: false,
 		},
 
@@ -402,7 +437,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 					]
 				}
 			]`,
-			expectedResult: false,
+			expectedResult: true,
 		},
 
 		// in operator (scope, deep)
@@ -455,7 +490,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 					]
 				}
 			]`,
-			expectedResult: false,
+			expectedResult: true,
 		},
 
 		// in operator (condition, deep)
@@ -510,6 +545,72 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 					"parents": [
 						"Resource::\"Grandparent\""
 					]
+				}
+			]`,
+			expectedResult: true,
+		},
+
+		// entity attributes
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal.s == "abc" &&
+				principal.i > 100 &&
+				principal.b != false
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"r": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"m": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"m": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
 				}
 			]`,
 			expectedResult: false,

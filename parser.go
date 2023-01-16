@@ -303,20 +303,45 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 				Literal: entityName,
 				Token:   ENTITY,
 			})
+		case PERIOD:
+			condClause.Sequence = append(condClause.Sequence, SequenceItem{
+				Token:   tok,
+				Literal: lit,
+			})
+			attributeName, err := p.scanAttribute()
+			if err != nil {
+				return nil, err
+			}
+			condClause.Sequence = append(condClause.Sequence, SequenceItem{
+				Literal: attributeName,
+				Token:   ATTRIBUTE,
+			})
 		// TODO: align possible token sequences to spec
-		case TRUE, FALSE, INT, DBLQUOTESTR, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, PERIOD, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
+		case TRUE, FALSE, INT, DBLQUOTESTR, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
 				Token:   tok,
 				Literal: lit,
 			})
 		default:
-			return nil, fmt.Errorf("unexpected token found in condition clause %q", lit)
+			return nil, fmt.Errorf("unexpected token found in condition clause %q (%q, %v)", lit, tok, tok)
 		}
 
 		tok, lit = p.scanIgnoreWhitespace()
 	}
 
 	return condClause, nil
+}
+
+// scanAttribute scans an attribute of an entity
+func (p *Parser) scanAttribute() (attributeName string, err error) {
+	tok, lit := p.scan()
+	attributeName = lit
+
+	if tok != IDENT {
+		return attributeName, fmt.Errorf("found %q, expected attribute", lit)
+	}
+
+	return attributeName, nil
 }
 
 // scanEntity scans an entity type

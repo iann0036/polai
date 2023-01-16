@@ -6,7 +6,7 @@
 
 # polai
 
-> A Cedar policy language lexer, parser & evaluator.
+> A Cedar policy language lexer, parser & evaluator
 
 ## Installation
 
@@ -29,6 +29,9 @@ Please add `-u` flag to update in the future.
 - [x] Inheritance (`in`) within condition block
 - [ ] Entity attributes evaluation
 - [ ] IP and Decimal extensions
+- [ ] `__expr` syntax in context
+- [ ] Enforce `Action::` namespace for actions
+- [ ] Context object
 
 ## License
 

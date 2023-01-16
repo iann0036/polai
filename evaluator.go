@@ -19,15 +19,17 @@ var OP_PRECEDENCE = map[Token]int{
 	PLUS:       3,
 	DASH:       3,
 	MULTIPLIER: 4,
+	PERIOD:     5,
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
-	LT:   true,
-	LTE:  true,
-	GT:   true,
-	GTE:  true,
-	IN:   true,
-	DASH: true,
+	LT:     true,
+	LTE:    true,
+	GT:     true,
+	GTE:    true,
+	IN:     true,
+	DASH:   true,
+	PERIOD: true,
 }
 
 // Evaluator represents an evaluator.
@@ -109,7 +111,7 @@ ForbidLoop:
 						continue
 					}
 				} else if stmt.ResourceParent != "" {
-					if stmt.Resource != resource {
+					if stmt.ResourceParent != resource {
 						if e.es == nil {
 							continue
 						} else {
@@ -197,7 +199,7 @@ PermitLoop:
 						continue
 					}
 				} else if stmt.ResourceParent != "" {
-					if stmt.Resource != resource {
+					if stmt.ResourceParent != resource {
 						if e.es == nil {
 							continue
 						} else {
@@ -241,7 +243,22 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	// restructure to rpn using shunting yard
 	for _, s := range cc.Sequence {
 		switch s.Token {
-		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY:
+		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE:
+			outputQueue = append(outputQueue, s)
+		case PRINCIPAL:
+			s.Token = ENTITY
+			s.Literal = principal
+			outputQueue = append(outputQueue, s)
+		case ACTION:
+			s.Token = ENTITY
+			s.Literal = action
+			outputQueue = append(outputQueue, s)
+		case RESOURCE:
+			s.Token = ENTITY
+			s.Literal = resource
+			outputQueue = append(outputQueue, s)
+		case CONTEXT:
+			s.Literal = context
 			outputQueue = append(outputQueue, s)
 		case LEFT_PAREN:
 			operatorStack = append(operatorStack, s)
@@ -259,7 +276,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, PERIOD:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -267,7 +284,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			}
 			operatorStack = append(operatorStack, s)
 		default:
-			return false, fmt.Errorf("unknown token: %q", s.Token)
+			return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 		}
 	}
 
@@ -285,8 +302,30 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	var rhs SequenceItem
 	for _, s := range outputQueue {
 		switch s.Token {
-		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY:
+		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT:
 			evalStack = append(evalStack, s)
+		case PERIOD:
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(evalStack)-2]
+
+			if lhs.Token == ENTITY {
+				if rhs.Token == ATTRIBUTE {
+					if e.es == nil {
+						return false, fmt.Errorf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token)
+					} else {
+						item, err := e.getAttributeSequenceItem(lhs.Literal, rhs.Literal)
+						if err != nil {
+							return false, err
+						}
+						evalStack = append(evalStack, item)
+					}
+				} else {
+					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
+				}
+			} else {
+				return false, fmt.Errorf("invalid period use: %q (%v)", lhs.Token, lhs.Token)
+			}
 		case IN:
 			rhs = evalStack[len(evalStack)-1]
 			lhs = evalStack[len(evalStack)-2]
@@ -330,7 +369,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q", s.Token)
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 			}
 		case LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER:
 			rhs = evalStack[len(evalStack)-1]
@@ -413,10 +452,10 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						})
 					}
 				} else {
-					return false, fmt.Errorf("unknown token: %q", s.Token)
+					return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q", s.Token)
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 			}
 		case EQUALITY:
 			rhs = evalStack[len(evalStack)-1]
@@ -501,7 +540,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q", s.Token)
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 			}
 		case INEQUALITY:
 			rhs = evalStack[len(evalStack)-1]
@@ -586,7 +625,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q", s.Token)
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 			}
 		case AND:
 			rhs = evalStack[len(evalStack)-1]
@@ -606,7 +645,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q", s.Token)
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 			}
 		case OR:
 			rhs = evalStack[len(evalStack)-1]
@@ -626,10 +665,10 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q", s.Token)
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 			}
 		default:
-			return false, fmt.Errorf("unknown token: %q", s.Token)
+			return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 		}
 	}
 
@@ -644,4 +683,53 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	}
 
 	return false, fmt.Errorf("invalid stack state")
+}
+
+func (e *Evaluator) getAttributeSequenceItem(entityName, attributeName string) (SequenceItem, error) {
+	if e.es == nil {
+		return SequenceItem{}, fmt.Errorf("attribute access on invalid entity store")
+	}
+
+	entities, err := e.es.GetEntities()
+	if err != nil {
+		return SequenceItem{}, err
+	}
+
+	for _, entity := range entities {
+		if entity.Identifier == entityName {
+			for _, attribute := range entity.Attributes {
+				if attribute.Name == attributeName {
+					if attribute.StringValue != nil {
+						return SequenceItem{
+							Token:   DBLQUOTESTR,
+							Literal: *attribute.StringValue,
+						}, nil
+					}
+					if attribute.LongValue != nil {
+						return SequenceItem{
+							Token:   INT,
+							Literal: strconv.FormatInt(*attribute.LongValue, 10),
+						}, nil
+					}
+					if attribute.BooleanValue != nil {
+						if *attribute.BooleanValue {
+							return SequenceItem{
+								Token:   TRUE,
+								Literal: "true",
+							}, nil
+						} else {
+							return SequenceItem{
+								Token:   FALSE,
+								Literal: "false",
+							}, nil
+						}
+					}
+					break
+				}
+			}
+			break
+		}
+	}
+
+	return SequenceItem{}, fmt.Errorf("attribute not set")
 }

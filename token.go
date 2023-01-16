@@ -15,7 +15,8 @@ const (
 	DBLQUOTESTR // "...abc..."
 	COMMENT     // // ...abc...
 
-	ENTITY // Namespace::"ID"
+	ENTITY    // Namespace::"ID"
+	ATTRIBUTE // entity.attribute
 
 	// Misc characters
 	LEFT_PAREN  // (
