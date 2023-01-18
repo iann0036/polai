@@ -17,6 +17,7 @@ const (
 
 	ENTITY    // Namespace::"ID"
 	ATTRIBUTE // entity.attribute
+	SET       // [...]
 
 	// Misc characters
 	LEFT_PAREN  // (

@@ -616,6 +616,72 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// entity attributes (deep)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal.r.s == "abc" &&
+				principal.r.i > 100 &&
+				principal.r.b != false
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"r": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"m": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"m": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				}
+			]`,
+			expectedResult: false,
+		},
+
 		// Errors
 		{s: `foo`, err: `found "foo", expected permit or forbid`},
 	}

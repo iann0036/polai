@@ -1,8 +1,10 @@
 package polai
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 )
 
@@ -314,12 +316,22 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					if e.es == nil {
 						return false, fmt.Errorf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token)
 					} else {
-						item, err := e.getAttributeSequenceItem(lhs.Literal, rhs.Literal)
+						item, err := e.getEntityAttributeSequenceItem(lhs.Literal, rhs.Literal)
 						if err != nil {
 							return false, err
 						}
 						evalStack = append(evalStack, item)
 					}
+				} else {
+					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
+				}
+			} else if lhs.Token == ATTRIBUTE {
+				if rhs.Token == ATTRIBUTE {
+					item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+					if err != nil {
+						return false, err
+					}
+					evalStack = append(evalStack, item)
 				} else {
 					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
 				}
@@ -685,7 +697,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	return false, fmt.Errorf("invalid stack state")
 }
 
-func (e *Evaluator) getAttributeSequenceItem(entityName, attributeName string) (SequenceItem, error) {
+func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName string) (SequenceItem, error) {
 	if e.es == nil {
 		return SequenceItem{}, fmt.Errorf("attribute access on invalid entity store")
 	}
@@ -724,10 +736,106 @@ func (e *Evaluator) getAttributeSequenceItem(entityName, attributeName string) (
 							}, nil
 						}
 					}
+					if attribute.RecordValue != nil {
+						b, err := json.Marshal(*attribute.RecordValue)
+						if err != nil {
+							return SequenceItem{}, err
+						}
+						return SequenceItem{
+							Token:   ATTRIBUTE,
+							Literal: string(b),
+						}, nil
+					}
+					if attribute.SetValue != nil {
+						b, err := json.Marshal(*attribute.SetValue)
+						if err != nil {
+							return SequenceItem{}, err
+						}
+						return SequenceItem{
+							Token:   SET,
+							Literal: string(b),
+						}, nil
+					}
 					break
 				}
 			}
 			break
+		}
+	}
+
+	return SequenceItem{}, fmt.Errorf("attribute not set")
+}
+
+func (e *Evaluator) getAttributeAttributeSequenceItem(sourceAttribute, attributeName string) (SequenceItem, error) {
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(sourceAttribute), &obj); err != nil {
+		return SequenceItem{}, err
+	}
+
+	for attrName, attrVal := range obj {
+		if attrName == attributeName {
+			switch attrVal.(type) {
+			case int:
+				val := int64(attrVal.(int))
+				return SequenceItem{
+					Token:   INT,
+					Literal: strconv.FormatInt(val, 10),
+				}, nil
+			case int64:
+				val := attrVal.(int64)
+				return SequenceItem{
+					Token:   INT,
+					Literal: strconv.FormatInt(val, 10),
+				}, nil
+			case float64:
+				val := int64(attrVal.(float64))
+				return SequenceItem{
+					Token:   INT,
+					Literal: strconv.FormatInt(val, 10),
+				}, nil
+			case string:
+				val := attrVal.(string)
+				return SequenceItem{
+					Token:   DBLQUOTESTR,
+					Literal: val,
+				}, nil
+			case bool:
+				val := attrVal.(bool)
+				if val {
+					return SequenceItem{
+						Token:   TRUE,
+						Literal: "true",
+					}, nil
+				} else {
+					return SequenceItem{
+						Token:   FALSE,
+						Literal: "false",
+					}, nil
+				}
+			case map[string]interface{}:
+				val := attrVal.(map[string]interface{})
+				b, err := json.Marshal(val)
+				if err != nil {
+					return SequenceItem{}, err
+				}
+				return SequenceItem{
+					Token:   ATTRIBUTE,
+					Literal: string(b),
+				}, nil
+			case []interface{}:
+				val := attrVal.([]interface{})
+				b, err := json.Marshal(val)
+				if err != nil {
+					return SequenceItem{}, err
+				}
+				return SequenceItem{
+					Token:   SET,
+					Literal: string(b),
+				}, nil
+			default:
+				return SequenceItem{}, fmt.Errorf("unknown type in attribute block: %v (%s)", attrVal, reflect.TypeOf(attrVal).String())
+			}
+
 		}
 	}
 
