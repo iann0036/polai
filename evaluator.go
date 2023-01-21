@@ -268,6 +268,8 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			outputQueue = append(outputQueue, s)
 		case LEFT_PAREN:
 			operatorStack = append(operatorStack, s)
+		case FUNCTION:
+			operatorStack = append(operatorStack, s)
 		case RIGHT_PAREN:
 			for {
 				if len(operatorStack) < 1 {
@@ -282,7 +284,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, PERIOD, FUNCTION:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, PERIOD:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -312,16 +314,31 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			evalStack = append(evalStack, s)
 		case FUNCTION:
 			rhs = evalStack[len(evalStack)-1]
-			evalStack = evalStack[:len(evalStack)-1]
-			lit := strings.TrimSuffix(strings.TrimPrefix(rhs.Literal, "\""), "\"")
+			lit := strings.TrimSuffix(strings.TrimPrefix(rhs.Normalized, "\""), "\"")
 
-			if s.Literal == "ip" { // TODO: netmask
+			if s.Literal == "ip" {
+				evalStack = evalStack[:len(evalStack)-1]
+
+				normalized := lit
+				if !strings.Contains(lit, "/") {
+					if strings.Count(lit, ":") >= 2 {
+						normalized += "/128"
+					} else {
+						normalized += "/32"
+					}
+				}
+				_, ipNet, err := net.ParseCIDR(normalized)
+				if err != nil {
+					return false, fmt.Errorf("invalid ip")
+				}
 				evalStack = append(evalStack, SequenceItem{
 					Token:      IP,
 					Literal:    lit,
-					Normalized: net.ParseIP(s.Literal).String(),
+					Normalized: ipNet.String(),
 				})
 			} else if s.Literal == "decimal" {
+				evalStack = evalStack[:len(evalStack)-1]
+
 				i := strings.IndexByte(lit, '.')
 				if i > -1 {
 					if (len(lit) - i - 1) > 4 {
@@ -338,14 +355,24 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					Normalized: strconv.FormatFloat(f, 'f', 4, 64),
 				})
 			} else {
-				return false, fmt.Errorf("unknown function: %s", s.Literal)
+				evalStack = append(evalStack, s)
 			}
 		case PERIOD:
 			rhs = evalStack[len(evalStack)-1]
 			lhs = evalStack[len(evalStack)-2]
 			evalStack = evalStack[:len(evalStack)-2]
 
-			if lhs.Token == ENTITY {
+			if lhs.Token == CONTEXT {
+				if rhs.Token == ATTRIBUTE {
+					item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+					if err != nil {
+						return false, err
+					}
+					evalStack = append(evalStack, item)
+				} else {
+					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
+				}
+			} else if lhs.Token == ENTITY {
 				if rhs.Token == ATTRIBUTE {
 					if e.es == nil {
 						return false, fmt.Errorf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token)
@@ -369,8 +396,246 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				} else {
 					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
 				}
+			} else if lhs.Token == IP {
+				if rhs.Token == FUNCTION {
+					if rhs.Literal == "isIpv4" {
+						if strings.Count(lhs.Normalized, ":") < 2 {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "isIpv6" {
+						if strings.Count(lhs.Normalized, ":") >= 2 {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "isInRange" {
+						insideRange := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+
+						_, ipNet, err := net.ParseCIDR(lhs.Normalized)
+						if err != nil {
+							return false, fmt.Errorf("invalid IP")
+						}
+						_, insideIpNet, err := net.ParseCIDR(insideRange.Normalized)
+						if err != nil {
+							return false, fmt.Errorf("invalid IP")
+						}
+
+						for i := range insideIpNet.IP {
+							insideIpNet.IP[i] &= insideIpNet.Mask[i]
+						}
+						firstIPInCIDR := insideIpNet.IP
+
+						for i := range insideIpNet.IP {
+							insideIpNet.IP[i] |= ^insideIpNet.Mask[i]
+						}
+						lastIPInCIDR := insideIpNet.IP
+
+						if ipNet.Contains(firstIPInCIDR) && ipNet.Contains(lastIPInCIDR) {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "isLoopback" {
+						_, ipNet, err := net.ParseCIDR(lhs.Normalized)
+						if err != nil {
+							return false, fmt.Errorf("invalid IP")
+						}
+
+						for i := range ipNet.IP {
+							ipNet.IP[i] &= ipNet.Mask[i]
+						}
+						firstIPInCIDR := ipNet.IP
+
+						for i := range ipNet.IP {
+							ipNet.IP[i] |= ^ipNet.Mask[i]
+						}
+						lastIPInCIDR := ipNet.IP
+
+						if firstIPInCIDR.IsLoopback() && lastIPInCIDR.IsLoopback() {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "isMulticast" {
+						_, ipNet, err := net.ParseCIDR(lhs.Normalized)
+						if err != nil {
+							return false, fmt.Errorf("invalid IP")
+						}
+
+						for i := range ipNet.IP {
+							ipNet.IP[i] &= ipNet.Mask[i]
+						}
+						firstIPInCIDR := ipNet.IP
+
+						for i := range ipNet.IP {
+							ipNet.IP[i] |= ^ipNet.Mask[i]
+						}
+						lastIPInCIDR := ipNet.IP
+
+						if firstIPInCIDR.IsMulticast() && lastIPInCIDR.IsMulticast() {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else {
+						return false, fmt.Errorf("unknown IP function: %s", rhs.Literal)
+					}
+				}
+			} else if lhs.Token == DECIMAL {
+				if rhs.Token == FUNCTION {
+					if rhs.Literal == "lessThan" {
+						actualLhs := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+
+						lhsD, err := strconv.ParseFloat(actualLhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+						rhsD, err := strconv.ParseFloat(lhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+
+						if lhsD < rhsD {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "lessThanOrEqual" {
+						actualLhs := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+
+						lhsD, err := strconv.ParseFloat(actualLhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+						rhsD, err := strconv.ParseFloat(lhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+
+						if lhsD <= rhsD {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "greaterThan" {
+						actualLhs := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+
+						lhsD, err := strconv.ParseFloat(actualLhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+						rhsD, err := strconv.ParseFloat(lhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+
+						if lhsD > rhsD {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else if rhs.Literal == "greaterThanOrEqual" {
+						actualLhs := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+
+						lhsD, err := strconv.ParseFloat(actualLhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+						rhsD, err := strconv.ParseFloat(lhs.Normalized, 64)
+						if err != nil {
+							return false, fmt.Errorf("error parsing decimal")
+						}
+
+						if lhsD >= rhsD {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							})
+						} else {
+							evalStack = append(evalStack, SequenceItem{
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
+							})
+						}
+					} else {
+						return false, fmt.Errorf("unknown decimal function: %s", rhs.Literal)
+					}
+				}
 			} else {
-				return false, fmt.Errorf("invalid period use: %q (%v)", lhs.Token, lhs.Token)
+				return false, fmt.Errorf("invalid period use or unknown function: %q (%v)", lhs.Token, lhs.Token)
 			}
 		case IN:
 			rhs = evalStack[len(evalStack)-1]
@@ -720,10 +985,11 @@ func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName str
 			for _, attribute := range entity.Attributes {
 				if attribute.Name == attributeName {
 					if attribute.StringValue != nil {
+						b, _ := json.Marshal(*attribute.StringValue)
 						return SequenceItem{
 							Token:      DBLQUOTESTR,
-							Literal:    *attribute.StringValue,
-							Normalized: *attribute.StringValue,
+							Literal:    string(b),
+							Normalized: string(b),
 						}, nil
 					}
 					if attribute.LongValue != nil {
@@ -811,11 +1077,11 @@ func (e *Evaluator) getAttributeAttributeSequenceItem(sourceAttribute, attribute
 					Normalized: strconv.FormatInt(val, 10),
 				}, nil
 			case string:
-				val := attrVal.(string)
+				b, _ := json.Marshal(attrVal.(string))
 				return SequenceItem{
 					Token:      DBLQUOTESTR,
-					Literal:    val,
-					Normalized: val,
+					Literal:    string(b),
+					Normalized: string(b),
 				}, nil
 			case bool:
 				val := attrVal.(bool)

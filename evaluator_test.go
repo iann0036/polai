@@ -550,6 +550,66 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// context basic
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				context.s == "abc"
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			context: `
+			{
+				"s": "abc",
+				"i": 123,
+				"b": true,
+				"r": {
+					"s": "abc",
+					"i": 123,
+					"b": true,
+					"l": ["def"]
+				},
+				"l": ["def"]
+			}`,
+			expectedResult: true,
+		},
+
+		// context
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				context.s == "abc" &&
+				context.i > 100 &&
+				context.b != false
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			context: `
+			{
+				"s": "abc",
+				"i": 123,
+				"b": true,
+				"r": {
+					"s": "abc",
+					"i": 123,
+					"b": true,
+					"l": ["def"]
+				},
+				"l": ["def"]
+			}`,
+			expectedResult: true,
+		},
+
 		// entity attributes
 		{
 			s: `
@@ -613,7 +673,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 					}
 				}
 			]`,
-			expectedResult: false,
+			expectedResult: true,
 		},
 
 		// entity attributes (deep)
@@ -679,7 +739,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 					}
 				}
 			]`,
-			expectedResult: false,
+			expectedResult: true,
 		},
 
 		// IP Function
@@ -714,6 +774,41 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// IP Function isInRange
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				ip("10.0.0.5/24").isInRange(ip("10.0.2.7/8"))
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// IP Function basic bool checks
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				ip("10.0.0.1").isIpv4() &&
+				ip("2001:0db8:85a3::8a2e:0370:7334").isIpv6() &&
+				ip("127.0.0.1").isLoopback() &&
+				ip("224.0.0.1").isMulticast()
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// Decimal Function
 		{
 			s: `
@@ -744,6 +839,25 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			action:         "Action::\"MyAction\"",
 			resource:       "Resource::\"MyResource\"",
 			expectedResult: false,
+		},
+
+		// Decimal Function basic bool checks
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				decimal("12.34").lessThan(decimal("20")) &&
+				decimal("12.34").lessThanOrEqual(decimal("12.34")) &&
+				decimal("12.34").greaterThan(decimal("10")) &&
+				decimal("12.34").greaterThanOrEqual(decimal("12.34"))
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
 		},
 
 		// Errors

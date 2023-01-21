@@ -27,11 +27,11 @@ Please add `-u` flag to update in the future.
 - [x] Logical operators for basic types (string, long, boolean) within condition block
 - [x] Entity store interpreter
 - [x] Inheritance (`in`) within condition block
-- [ ] Entity attributes evaluation
-- [ ] IP and Decimal extensions
+- [x] Entity attributes evaluation
+- [x] IP and Decimal extensions
 - [ ] `__expr` syntax in context
 - [ ] Enforce `Action::` namespace for actions
-- [ ] Context object
+- [x] Context object
 - [ ] Set operations
 
 ## License
