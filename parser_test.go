@@ -169,7 +169,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				action,
 				resource
 			) when {
-				123 == 123
+				123 == 0123
 			};`,
 			stmts: &[]polai.PolicyStatement{
 				{
@@ -181,9 +181,9 @@ func TestParser_ParseStatement(t *testing.T) {
 						{
 							Type: polai.WHEN,
 							Sequence: []polai.SequenceItem{
-								{Token: polai.INT, Literal: "123"},
-								{Token: polai.EQUALITY, Literal: "=="},
-								{Token: polai.INT, Literal: "123"},
+								{Token: polai.INT, Literal: "123", Normalized: "123"},
+								{Token: polai.EQUALITY, Literal: "==", Normalized: "=="},
+								{Token: polai.INT, Literal: "0123", Normalized: "123"},
 							},
 						},
 					},

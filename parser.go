@@ -3,6 +3,7 @@ package polai
 import (
 	"fmt"
 	"io"
+	"strconv"
 )
 
 // PolicyStatement represents a set of Cedar policy statements
@@ -36,8 +37,9 @@ func (cc *ConditionClause) ToString() string {
 }
 
 type SequenceItem struct {
-	Token   Token
-	Literal string
+	Token      Token
+	Literal    string
+	Normalized string
 }
 
 // Parser represents a parser.
@@ -283,44 +285,68 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 		switch tok {
 		case LEFT_BRACE:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Token:   tok,
-				Literal: lit,
+				Token:      tok,
+				Literal:    lit,
+				Normalized: lit,
 			})
 			braceLevel++
 		case RIGHT_BRACE:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Token:   tok,
-				Literal: lit,
+				Token:      tok,
+				Literal:    lit,
+				Normalized: lit,
 			})
 			braceLevel--
 		case IDENT:
 			p.unscan()
-			entityName, err := p.scanEntity()
+			item, err := p.scanEntityOrFunction()
 			if err != nil {
 				return nil, err
 			}
-			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Literal: entityName,
-				Token:   ENTITY,
-			})
+			condClause.Sequence = append(condClause.Sequence, item)
 		case PERIOD:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Token:   tok,
-				Literal: lit,
+				Token:      tok,
+				Literal:    lit,
+				Normalized: lit,
 			})
-			attributeName, err := p.scanAttribute()
+			tok, lit := p.scan()
+			if tok != IDENT {
+				return nil, fmt.Errorf("found %q, expected attribute or function", lit)
+			}
+			tok, _ = p.scan()
+			if tok != LEFT_PAREN {
+				p.unscan()
+				condClause.Sequence = append(condClause.Sequence, SequenceItem{
+					Token:      ATTRIBUTE,
+					Literal:    lit,
+					Normalized: lit,
+				})
+			} else {
+				p.unscan()
+				condClause.Sequence = append(condClause.Sequence, SequenceItem{
+					Token:      FUNCTION,
+					Literal:    lit,
+					Normalized: lit,
+				})
+			}
+		// TODO: INT to LONG
+		case INT:
+			i, err := strconv.ParseInt(lit, 10, 64)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error parsing long")
 			}
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Literal: attributeName,
-				Token:   ATTRIBUTE,
+				Token:      tok,
+				Literal:    lit,
+				Normalized: strconv.FormatInt(i, 10),
 			})
 		// TODO: align possible token sequences to spec
-		case TRUE, FALSE, INT, DBLQUOTESTR, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
+		case TRUE, FALSE, DBLQUOTESTR, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
-				Token:   tok,
-				Literal: lit,
+				Token:      tok,
+				Literal:    lit,
+				Normalized: lit,
 			})
 		default:
 			return nil, fmt.Errorf("unexpected token found in condition clause %q (%q, %v)", lit, tok, tok)
@@ -332,20 +358,8 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 	return condClause, nil
 }
 
-// scanAttribute scans an attribute of an entity
-func (p *Parser) scanAttribute() (attributeName string, err error) {
-	tok, lit := p.scan()
-	attributeName = lit
-
-	if tok != IDENT {
-		return attributeName, fmt.Errorf("found %q, expected attribute", lit)
-	}
-
-	return attributeName, nil
-}
-
 // scanEntity scans an entity type
-func (p *Parser) scanEntity() (entityName string, err error) {
+func (p *Parser) scanEntity() (entityName string, err error) { // TODO: deprecate?
 	tok, lit := p.scanIgnoreWhitespace()
 	entityName = lit
 
@@ -374,6 +388,51 @@ func (p *Parser) scanEntity() (entityName string, err error) {
 	}
 
 	return entityName, nil
+}
+
+// scanEntityOrFunction scans an entity or function type
+func (p *Parser) scanEntityOrFunction() (item SequenceItem, err error) {
+	tok, lit := p.scanIgnoreWhitespace()
+	name := lit
+
+	if tok != IDENT {
+		return SequenceItem{}, fmt.Errorf("found %q, expected entity namespace", lit)
+	}
+	tok, lit = p.scan()
+	if tok == LEFT_PAREN {
+		p.unscan()
+		return SequenceItem{
+			Token:      FUNCTION,
+			Literal:    name,
+			Normalized: name,
+		}, nil
+	}
+	if tok != NAMESPACE {
+		return SequenceItem{}, fmt.Errorf("found %q, expected namespace separator", lit)
+	}
+	name += "::"
+
+	for {
+		tok, lit = p.scan()
+		if tok == IDENT {
+			name += lit
+			if tok, lit = p.scan(); tok != NAMESPACE {
+				return SequenceItem{}, fmt.Errorf("found %q, expected subnamespace separator", lit)
+			}
+			name += "::"
+		} else if tok == DBLQUOTESTR {
+			name += lit
+			break
+		} else {
+			return SequenceItem{}, fmt.Errorf("found %q, expected double quoted string or entity namespace", lit)
+		}
+	}
+
+	return SequenceItem{
+		Token:      ENTITY,
+		Literal:    name,
+		Normalized: name,
+	}, nil
 }
 
 // unscan pushes the previously read token back onto the buffer.

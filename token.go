@@ -18,6 +18,11 @@ const (
 	ENTITY    // Namespace::"ID"
 	ATTRIBUTE // entity.attribute
 	SET       // [...]
+	FUNCTION  // xyz()
+
+	// Extensions
+	IP
+	DECIMAL
 
 	// Misc characters
 	LEFT_PAREN  // (

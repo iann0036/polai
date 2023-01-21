@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 var OP_PRECEDENCE = map[Token]int{
@@ -22,16 +24,18 @@ var OP_PRECEDENCE = map[Token]int{
 	DASH:       3,
 	MULTIPLIER: 4,
 	PERIOD:     5,
+	FUNCTION:   6,
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
-	LT:     true,
-	LTE:    true,
-	GT:     true,
-	GTE:    true,
-	IN:     true,
-	DASH:   true,
-	PERIOD: true,
+	LT:       true,
+	LTE:      true,
+	GT:       true,
+	GTE:      true,
+	IN:       true,
+	DASH:     true,
+	PERIOD:   true,
+	FUNCTION: true,
 }
 
 // Evaluator represents an evaluator.
@@ -242,7 +246,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	var outputQueue []SequenceItem
 	var operatorStack []SequenceItem
 
-	// restructure to rpn using shunting yard
+	// restructure to rpn using shunting yard, and set normalized if not set
 	for _, s := range cc.Sequence {
 		switch s.Token {
 		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE:
@@ -278,7 +282,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, PERIOD:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, PERIOD, FUNCTION:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -306,6 +310,36 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 		switch s.Token {
 		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT:
 			evalStack = append(evalStack, s)
+		case FUNCTION:
+			rhs = evalStack[len(evalStack)-1]
+			evalStack = evalStack[:len(evalStack)-1]
+			lit := strings.TrimSuffix(strings.TrimPrefix(rhs.Literal, "\""), "\"")
+
+			if s.Literal == "ip" { // TODO: netmask
+				evalStack = append(evalStack, SequenceItem{
+					Token:      IP,
+					Literal:    lit,
+					Normalized: net.ParseIP(s.Literal).String(),
+				})
+			} else if s.Literal == "decimal" {
+				i := strings.IndexByte(lit, '.')
+				if i > -1 {
+					if (len(lit) - i - 1) > 4 {
+						return false, fmt.Errorf("too much precision in decimal")
+					}
+				}
+				f, err := strconv.ParseFloat(lit, 64)
+				if err != nil {
+					return false, fmt.Errorf("error parsing decimal")
+				}
+				evalStack = append(evalStack, SequenceItem{
+					Token:      DECIMAL,
+					Literal:    lit,
+					Normalized: strconv.FormatFloat(f, 'f', 4, 64),
+				})
+			} else {
+				return false, fmt.Errorf("unknown function: %s", s.Literal)
+			}
 		case PERIOD:
 			rhs = evalStack[len(evalStack)-1]
 			lhs = evalStack[len(evalStack)-2]
@@ -347,14 +381,16 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				if rhs.Token == ENTITY {
 					if lhs.Literal == rhs.Literal {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
+							Token:      TRUE,
+							Literal:    "true",
+							Normalized: "true",
 						})
 					} else {
 						if e.es == nil {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   FALSE,
-								Literal: "false",
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
 							})
 						} else {
 							descendants, err := e.es.GetEntityDescendents([]string{rhs.Literal})
@@ -363,21 +399,24 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 							}
 							if containsEntity(descendants, lhs.Literal) {
 								evalStack = append(evalStack, SequenceItem{
-									Token:   TRUE,
-									Literal: "true",
+									Token:      TRUE,
+									Literal:    "true",
+									Normalized: "true",
 								})
 							} else {
 								evalStack = append(evalStack, SequenceItem{
-									Token:   FALSE,
-									Literal: "false",
+									Token:      FALSE,
+									Literal:    "false",
+									Normalized: "false",
 								})
 							}
 						}
 					}
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				}
 			} else {
@@ -402,65 +441,76 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					if s.Token == LT {
 						if lhsL < rhsL {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   TRUE,
-								Literal: "true",
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
 							})
 						} else {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   FALSE,
-								Literal: "false",
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
 							})
 						}
 					} else if s.Token == LTE {
 						if lhsL <= rhsL {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   TRUE,
-								Literal: "true",
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
 							})
 						} else {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   FALSE,
-								Literal: "false",
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
 							})
 						}
 					} else if s.Token == GT {
 						if lhsL > rhsL {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   TRUE,
-								Literal: "true",
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
 							})
 						} else {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   FALSE,
-								Literal: "false",
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
 							})
 						}
 					} else if s.Token == GTE {
 						if lhsL >= rhsL {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   TRUE,
-								Literal: "true",
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
 							})
 						} else {
 							evalStack = append(evalStack, SequenceItem{
-								Token:   FALSE,
-								Literal: "false",
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
 							})
 						}
 					} else if s.Token == PLUS {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   INT,
-							Literal: strconv.FormatInt(lhsL+rhsL, 10),
+							Token:      INT,
+							Literal:    strconv.FormatInt(lhsL+rhsL, 10),
+							Normalized: strconv.FormatInt(lhsL+rhsL, 10),
 						})
 					} else if s.Token == DASH {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   INT,
-							Literal: strconv.FormatInt(lhsL-rhsL, 10),
+							Token:      INT,
+							Literal:    strconv.FormatInt(lhsL-rhsL, 10),
+							Normalized: strconv.FormatInt(lhsL-rhsL, 10),
 						})
 					} else if s.Token == MULTIPLIER {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   INT,
-							Literal: strconv.FormatInt(lhsL*rhsL, 10),
+							Token:      INT,
+							Literal:    strconv.FormatInt(lhsL*rhsL, 10),
+							Normalized: strconv.FormatInt(lhsL*rhsL, 10),
 						})
 					}
 				} else {
@@ -477,82 +527,59 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			if lhs.Token == TRUE || lhs.Token == FALSE {
 				if rhs.Token == lhs.Token {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				}
-			} else if lhs.Token == INT {
-				if rhs.Token == INT {
-					lhsL, err := strconv.ParseInt(lhs.Literal, 10, 64)
-					if err != nil {
-						return false, err
-					}
-					rhsL, err := strconv.ParseInt(rhs.Literal, 10, 64)
-					if err != nil {
-						return false, err
-					}
-					if lhsL == rhsL {
+			} else if lhs.Token == IP {
+				if rhs.Token == IP {
+					if net.ParseIP(lhs.Literal).Equal(net.ParseIP(rhs.Literal)) {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
+							Token:      TRUE,
+							Literal:    "true",
+							Normalized: "true",
 						})
 					} else {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   FALSE,
-							Literal: "false",
+							Token:      FALSE,
+							Literal:    "false",
+							Normalized: "false",
 						})
 					}
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				}
-			} else if lhs.Token == DBLQUOTESTR {
-				if rhs.Token == DBLQUOTESTR {
-					if lhs.Literal == rhs.Literal {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
-						})
-					} else {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   FALSE,
-							Literal: "false",
-						})
-					}
-				} else {
+			} else if lhs.Token == rhs.Token {
+				if lhs.Normalized == rhs.Normalized {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
-				}
-			} else if lhs.Token == ENTITY {
-				if rhs.Token == ENTITY {
-					if lhs.Literal == rhs.Literal {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
-						})
-					} else {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   FALSE,
-							Literal: "false",
-						})
-					}
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
+				evalStack = append(evalStack, SequenceItem{
+					Token:      FALSE,
+					Literal:    "false",
+					Normalized: "false",
+				})
 			}
 		case INEQUALITY:
 			rhs = evalStack[len(evalStack)-1]
@@ -562,82 +589,59 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			if lhs.Token == TRUE || lhs.Token == FALSE {
 				if rhs.Token == lhs.Token {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
 				}
-			} else if lhs.Token == INT {
-				if rhs.Token == INT {
-					lhsL, err := strconv.ParseInt(lhs.Literal, 10, 64)
-					if err != nil {
-						return false, err
-					}
-					rhsL, err := strconv.ParseInt(rhs.Literal, 10, 64)
-					if err != nil {
-						return false, err
-					}
-					if lhsL == rhsL {
+			} else if lhs.Token == IP {
+				if rhs.Token == IP {
+					if net.ParseIP(lhs.Literal).Equal(net.ParseIP(rhs.Literal)) {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   FALSE,
-							Literal: "false",
+							Token:      FALSE,
+							Literal:    "false",
+							Normalized: "false",
 						})
 					} else {
 						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
+							Token:      TRUE,
+							Literal:    "true",
+							Normalized: "true",
 						})
 					}
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
 				}
-			} else if lhs.Token == DBLQUOTESTR {
-				if rhs.Token == DBLQUOTESTR {
-					if lhs.Literal == rhs.Literal {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   FALSE,
-							Literal: "false",
-						})
-					} else {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
-						})
-					}
-				} else {
+			} else if lhs.Token == rhs.Token {
+				if lhs.Normalized == rhs.Normalized {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
-				}
-			} else if lhs.Token == ENTITY {
-				if rhs.Token == ENTITY {
-					if lhs.Literal == rhs.Literal {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   FALSE,
-							Literal: "false",
-						})
-					} else {
-						evalStack = append(evalStack, SequenceItem{
-							Token:   TRUE,
-							Literal: "true",
-						})
-					}
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
 				}
 			} else {
-				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
+				evalStack = append(evalStack, SequenceItem{
+					Token:      TRUE,
+					Literal:    "true",
+					Normalized: "true",
+				})
 			}
 		case AND:
 			rhs = evalStack[len(evalStack)-1]
@@ -647,13 +651,15 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			if lhs.Token == TRUE || lhs.Token == FALSE && rhs.Token == TRUE || rhs.Token == FALSE {
 				if lhs.Token == TRUE && rhs.Token == TRUE {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				}
 			} else {
@@ -667,13 +673,15 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			if lhs.Token == TRUE || lhs.Token == FALSE && rhs.Token == TRUE || rhs.Token == FALSE {
 				if lhs.Token == TRUE || rhs.Token == TRUE {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					})
 				} else {
 					evalStack = append(evalStack, SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					})
 				}
 			} else {
@@ -713,26 +721,30 @@ func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName str
 				if attribute.Name == attributeName {
 					if attribute.StringValue != nil {
 						return SequenceItem{
-							Token:   DBLQUOTESTR,
-							Literal: *attribute.StringValue,
+							Token:      DBLQUOTESTR,
+							Literal:    *attribute.StringValue,
+							Normalized: *attribute.StringValue,
 						}, nil
 					}
 					if attribute.LongValue != nil {
 						return SequenceItem{
-							Token:   INT,
-							Literal: strconv.FormatInt(*attribute.LongValue, 10),
+							Token:      INT,
+							Literal:    strconv.FormatInt(*attribute.LongValue, 10),
+							Normalized: strconv.FormatInt(*attribute.LongValue, 10),
 						}, nil
 					}
 					if attribute.BooleanValue != nil {
 						if *attribute.BooleanValue {
 							return SequenceItem{
-								Token:   TRUE,
-								Literal: "true",
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
 							}, nil
 						} else {
 							return SequenceItem{
-								Token:   FALSE,
-								Literal: "false",
+								Token:      FALSE,
+								Literal:    "false",
+								Normalized: "false",
 							}, nil
 						}
 					}
@@ -742,8 +754,9 @@ func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName str
 							return SequenceItem{}, err
 						}
 						return SequenceItem{
-							Token:   ATTRIBUTE,
-							Literal: string(b),
+							Token:      ATTRIBUTE,
+							Literal:    string(b),
+							Normalized: string(b),
 						}, nil
 					}
 					if attribute.SetValue != nil {
@@ -752,8 +765,9 @@ func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName str
 							return SequenceItem{}, err
 						}
 						return SequenceItem{
-							Token:   SET,
-							Literal: string(b),
+							Token:      SET,
+							Literal:    string(b),
+							Normalized: string(b),
 						}, nil
 					}
 					break
@@ -778,38 +792,44 @@ func (e *Evaluator) getAttributeAttributeSequenceItem(sourceAttribute, attribute
 			case int:
 				val := int64(attrVal.(int))
 				return SequenceItem{
-					Token:   INT,
-					Literal: strconv.FormatInt(val, 10),
+					Token:      INT,
+					Literal:    strconv.FormatInt(val, 10),
+					Normalized: strconv.FormatInt(val, 10),
 				}, nil
 			case int64:
 				val := attrVal.(int64)
 				return SequenceItem{
-					Token:   INT,
-					Literal: strconv.FormatInt(val, 10),
+					Token:      INT,
+					Literal:    strconv.FormatInt(val, 10),
+					Normalized: strconv.FormatInt(val, 10),
 				}, nil
 			case float64:
 				val := int64(attrVal.(float64))
 				return SequenceItem{
-					Token:   INT,
-					Literal: strconv.FormatInt(val, 10),
+					Token:      INT,
+					Literal:    strconv.FormatInt(val, 10),
+					Normalized: strconv.FormatInt(val, 10),
 				}, nil
 			case string:
 				val := attrVal.(string)
 				return SequenceItem{
-					Token:   DBLQUOTESTR,
-					Literal: val,
+					Token:      DBLQUOTESTR,
+					Literal:    val,
+					Normalized: val,
 				}, nil
 			case bool:
 				val := attrVal.(bool)
 				if val {
 					return SequenceItem{
-						Token:   TRUE,
-						Literal: "true",
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
 					}, nil
 				} else {
 					return SequenceItem{
-						Token:   FALSE,
-						Literal: "false",
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
 					}, nil
 				}
 			case map[string]interface{}:
@@ -819,8 +839,9 @@ func (e *Evaluator) getAttributeAttributeSequenceItem(sourceAttribute, attribute
 					return SequenceItem{}, err
 				}
 				return SequenceItem{
-					Token:   ATTRIBUTE,
-					Literal: string(b),
+					Token:      ATTRIBUTE,
+					Literal:    string(b),
+					Normalized: string(b),
 				}, nil
 			case []interface{}:
 				val := attrVal.([]interface{})
@@ -829,8 +850,9 @@ func (e *Evaluator) getAttributeAttributeSequenceItem(sourceAttribute, attribute
 					return SequenceItem{}, err
 				}
 				return SequenceItem{
-					Token:   SET,
-					Literal: string(b),
+					Token:      SET,
+					Literal:    string(b),
+					Normalized: string(b),
 				}, nil
 			default:
 				return SequenceItem{}, fmt.Errorf("unknown type in attribute block: %v (%s)", attrVal, reflect.TypeOf(attrVal).String())

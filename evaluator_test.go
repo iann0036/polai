@@ -682,6 +682,70 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// IP Function
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				ip("10.0.0.1") == ip("10.0.0.1")
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// IP Function (negate)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				ip("10.0.0.1") == ip("10.0.0.2")
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
+		// Decimal Function
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				decimal("12.34") == decimal("12.340")
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Decimal Function (negate)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				decimal("12.34") == decimal("12.341")
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
 		// Errors
 		{s: `foo`, err: `found "foo", expected permit or forbid`},
 	}
