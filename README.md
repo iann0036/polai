@@ -21,6 +21,7 @@ package main
 
 import (
     "fmt"
+    "strings"
 
     "github.com/iann0036/polai"
 )
@@ -34,7 +35,7 @@ func main() {
     ) when {
         context.ssl == true
     };`))
-    result, err := e.Evaluate(`User::"alice"`, `Action::"listFiles"`, `Folder::"My Folder"`, `{
+    result, _ := e.Evaluate(`User::"alice"`, `Action::"listFiles"`, `Folder::"My Folder"`, `{
         "ssl": true
     }`)
 
