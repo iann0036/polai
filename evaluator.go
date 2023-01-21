@@ -25,6 +25,7 @@ var OP_PRECEDENCE = map[Token]int{
 	MULTIPLIER: 4,
 	PERIOD:     5,
 	FUNCTION:   6,
+	RIGHT_SQB:  6,
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
@@ -266,6 +267,12 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 		case CONTEXT:
 			s.Literal = context
 			outputQueue = append(outputQueue, s)
+		case LEFT_SQB:
+			outputQueue = append(outputQueue, s)
+		case COMMA:
+			outputQueue = append(outputQueue, s)
+		case RIGHT_SQB:
+			operatorStack = append(operatorStack, s)
 		case LEFT_PAREN:
 			operatorStack = append(operatorStack, s)
 		case FUNCTION:
@@ -310,11 +317,12 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	var rhs SequenceItem
 	for _, s := range outputQueue {
 		switch s.Token {
-		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT:
+		case COMMA:
+		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB:
 			evalStack = append(evalStack, s)
 		case FUNCTION:
 			rhs = evalStack[len(evalStack)-1]
-			lit := strings.TrimSuffix(strings.TrimPrefix(rhs.Normalized, "\""), "\"")
+			lit := rhs.Normalized
 
 			if s.Literal == "ip" {
 				evalStack = evalStack[:len(evalStack)-1]
@@ -362,42 +370,135 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			lhs = evalStack[len(evalStack)-2]
 			evalStack = evalStack[:len(evalStack)-2]
 
-			if lhs.Token == CONTEXT {
-				if rhs.Token == ATTRIBUTE {
-					item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+			if lhs.Token == CONTEXT && rhs.Token == ATTRIBUTE {
+				item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+				if err != nil {
+					return false, err
+				}
+				evalStack = append(evalStack, item)
+			} else if lhs.Token == ENTITY && rhs.Token == ATTRIBUTE {
+				if e.es == nil {
+					return false, fmt.Errorf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token)
+				} else {
+					item, err := e.getEntityAttributeSequenceItem(lhs.Literal, rhs.Literal)
 					if err != nil {
 						return false, err
 					}
 					evalStack = append(evalStack, item)
-				} else {
-					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
 				}
-			} else if lhs.Token == ENTITY {
-				if rhs.Token == ATTRIBUTE {
-					if e.es == nil {
-						return false, fmt.Errorf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token)
-					} else {
-						item, err := e.getEntityAttributeSequenceItem(lhs.Literal, rhs.Literal)
+			} else if lhs.Token == ATTRIBUTE && rhs.Token == ATTRIBUTE {
+				item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+				if err != nil {
+					return false, err
+				}
+				evalStack = append(evalStack, item)
+			} else if rhs.Token == FUNCTION {
+				if rhs.Literal == "contains" {
+					actualLhs := evalStack[len(evalStack)-1]
+					evalStack = evalStack[:len(evalStack)-1]
+					if actualLhs.Token != SET {
+						return false, fmt.Errorf("unexpected use of contains function")
+					}
+					var actualLhsSet []interface{}
+					err := json.Unmarshal([]byte(actualLhs.Literal), &actualLhsSet)
+					if err != nil {
+						return false, err
+					}
+					item := SequenceItem{
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
+					}
+					for _, setItem := range actualLhsSet {
+						if lhs.Normalized == setItem {
+							item = SequenceItem{
+								Token:      TRUE,
+								Literal:    "true",
+								Normalized: "true",
+							}
+							break
+						}
+					}
+					evalStack = append(evalStack, item)
+				} else if lhs.Token == SET {
+					if rhs.Literal == "containsAll" {
+						actualLhs := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+						if actualLhs.Token != SET {
+							return false, fmt.Errorf("unexpected use of contains function")
+						}
+						var actualLhsSet []interface{}
+						err := json.Unmarshal([]byte(actualLhs.Literal), &actualLhsSet)
 						if err != nil {
 							return false, err
 						}
+						var actualRhsSet []interface{}
+						err = json.Unmarshal([]byte(lhs.Normalized), &actualRhsSet)
+						if err != nil {
+							return false, err
+						}
+						item := SequenceItem{
+							Token:      TRUE,
+							Literal:    "true",
+							Normalized: "true",
+						}
+						for _, rhsSetItem := range actualRhsSet {
+							found := false
+							for _, lhsSetItem := range actualLhsSet {
+								if rhsSetItem == lhsSetItem {
+									found = true
+									break
+								}
+							}
+							if !found {
+								item = SequenceItem{
+									Token:      FALSE,
+									Literal:    "false",
+									Normalized: "false",
+								}
+								break
+							}
+						}
 						evalStack = append(evalStack, item)
+					} else if rhs.Literal == "containsAny" {
+						actualLhs := evalStack[len(evalStack)-1]
+						evalStack = evalStack[:len(evalStack)-1]
+						if actualLhs.Token != SET {
+							return false, fmt.Errorf("unexpected use of contains function")
+						}
+						var actualLhsSet []interface{}
+						err := json.Unmarshal([]byte(actualLhs.Literal), &actualLhsSet)
+						if err != nil {
+							return false, err
+						}
+						var actualRhsSet []interface{}
+						err = json.Unmarshal([]byte(lhs.Normalized), &actualRhsSet)
+						if err != nil {
+							return false, err
+						}
+						item := SequenceItem{
+							Token:      FALSE,
+							Literal:    "false",
+							Normalized: "false",
+						}
+					ActualRhsSetLoop:
+						for _, rhsSetItem := range actualRhsSet {
+							for _, lhsSetItem := range actualLhsSet {
+								if rhsSetItem == lhsSetItem {
+									item = SequenceItem{
+										Token:      TRUE,
+										Literal:    "true",
+										Normalized: "true",
+									}
+									break ActualRhsSetLoop
+								}
+							}
+						}
+						evalStack = append(evalStack, item)
+					} else {
+						return false, fmt.Errorf("unknown function: %s", rhs.Literal)
 					}
-				} else {
-					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
-				}
-			} else if lhs.Token == ATTRIBUTE {
-				if rhs.Token == ATTRIBUTE {
-					item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
-					if err != nil {
-						return false, err
-					}
-					evalStack = append(evalStack, item)
-				} else {
-					return false, fmt.Errorf("invalid attribute access: %q (%v)", rhs.Token, rhs.Token)
-				}
-			} else if lhs.Token == IP {
-				if rhs.Token == FUNCTION {
+				} else if lhs.Token == IP {
 					if rhs.Literal == "isIpv4" {
 						if strings.Count(lhs.Normalized, ":") < 2 {
 							evalStack = append(evalStack, SequenceItem{
@@ -523,9 +624,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					} else {
 						return false, fmt.Errorf("unknown IP function: %s", rhs.Literal)
 					}
-				}
-			} else if lhs.Token == DECIMAL {
-				if rhs.Token == FUNCTION {
+				} else if lhs.Token == DECIMAL {
 					if rhs.Literal == "lessThan" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
@@ -633,10 +732,33 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					} else {
 						return false, fmt.Errorf("unknown decimal function: %s", rhs.Literal)
 					}
+				} else {
+					return false, fmt.Errorf("unknown function: %s", rhs.Literal)
 				}
 			} else {
-				return false, fmt.Errorf("invalid period use or unknown function: %q (%v)", lhs.Token, lhs.Token)
+				return false, fmt.Errorf("invalid period use, unknown function or attribute access: %q (%v)", lhs.Token, lhs.Token)
 			}
+		case RIGHT_SQB:
+			var set []interface{}
+
+			rhs = evalStack[len(evalStack)-1]
+			evalStack = evalStack[:len(evalStack)-1]
+			for rhs.Token != LEFT_SQB {
+				set = append(set, rhs.Normalized)
+				rhs = evalStack[len(evalStack)-1]
+				evalStack = evalStack[:len(evalStack)-1]
+			}
+
+			b, err := json.Marshal(set)
+			if err != nil {
+				return false, fmt.Errorf("error whilst processing set")
+			}
+
+			evalStack = append(evalStack, SequenceItem{
+				Token:      SET,
+				Literal:    string(b),
+				Normalized: string(b),
+			})
 		case IN:
 			rhs = evalStack[len(evalStack)-1]
 			lhs = evalStack[len(evalStack)-2]
@@ -1036,7 +1158,7 @@ func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName str
 						return SequenceItem{
 							Token:      DBLQUOTESTR,
 							Literal:    string(b),
-							Normalized: string(b),
+							Normalized: *attribute.StringValue,
 						}, nil
 					}
 					if attribute.LongValue != nil {
@@ -1128,7 +1250,7 @@ func (e *Evaluator) getAttributeAttributeSequenceItem(sourceAttribute, attribute
 				return SequenceItem{
 					Token:      DBLQUOTESTR,
 					Literal:    string(b),
-					Normalized: string(b),
+					Normalized: attrVal.(string),
 				}, nil
 			case bool:
 				val := attrVal.(bool)

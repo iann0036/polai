@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 // PolicyStatement represents a set of Cedar policy statements
@@ -349,8 +350,14 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 				Literal:    lit,
 				Normalized: strconv.FormatInt(i, 10),
 			})
+		case DBLQUOTESTR:
+			condClause.Sequence = append(condClause.Sequence, SequenceItem{
+				Token:      tok,
+				Literal:    lit,
+				Normalized: strings.TrimSuffix(strings.TrimPrefix(lit, "\""), "\""),
+			})
 		// TODO: align possible token sequences to spec
-		case TRUE, FALSE, DBLQUOTESTR, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
+		case TRUE, FALSE, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
 				Token:      tok,
 				Literal:    lit,

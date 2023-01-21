@@ -924,6 +924,76 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// contains from attribute
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal.l.contains("def") &&
+				principal.l.containsAll(principal.l) &&
+				principal.l.containsAny(principal.l)
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"r": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				}
+			]`,
+			expectedResult: true,
+		},
+
+		// contains from square brackets
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				[1, 2, 3].contains(2) &&
+				[1, 2, 3].containsAll([1, 2]) &&
+				[1, 2, 3].containsAny([5, 4, 3])
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// contains from square brackets (negate)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				[1, 2, 3].containsAny([6, 5, 4])
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
 		// Errors
 		{s: `foo`, err: `found "foo", expected permit or forbid`},
 	}

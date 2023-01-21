@@ -32,7 +32,7 @@ Please add `-u` flag to update in the future.
 - [ ] `__expr` syntax in context
 - [ ] Enforce `Action::` namespace for actions
 - [x] Context object
-- [ ] Set operations
+- [x] Set operations
 - [x] `has` operation
 
 ## License
