@@ -284,7 +284,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, PERIOD:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, PERIOD:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -683,6 +683,53 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						Literal:    "false",
 						Normalized: "false",
 					})
+				}
+			} else {
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
+			}
+		case HAS:
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(evalStack)-2]
+
+			if lhs.Token == ENTITY {
+				if rhs.Token == ATTRIBUTE {
+					if e.es == nil {
+						evalStack = append(evalStack, SequenceItem{
+							Token:      FALSE,
+							Literal:    "false",
+							Normalized: "false",
+						})
+					} else {
+						entities, err := e.es.GetEntities()
+						if err != nil {
+							return false, err
+						}
+
+						item := SequenceItem{
+							Token:      FALSE,
+							Literal:    "false",
+							Normalized: "false",
+						}
+
+						for _, entity := range entities {
+							if entity.Identifier == lhs.Literal {
+								for _, attribute := range entity.Attributes {
+									if attribute.Name == rhs.Literal {
+										item = SequenceItem{
+											Token:      TRUE,
+											Literal:    "true",
+											Normalized: "true",
+										}
+									}
+								}
+							}
+						}
+
+						evalStack = append(evalStack, item)
+					}
+				} else {
+					return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
 				}
 			} else {
 				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)

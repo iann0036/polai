@@ -742,6 +742,70 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// entity has
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal has s
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"r": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"m": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"attrs": {
+						"s": "abc",
+						"i": 123,
+						"b": true,
+						"m": {
+							"s": "abc",
+							"i": 123,
+							"b": true,
+							"l": ["def"]
+						},
+						"l": ["def"]
+					}
+				}
+			]`,
+			expectedResult: true,
+		},
+
 		// IP Function
 		{
 			s: `

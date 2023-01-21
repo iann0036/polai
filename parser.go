@@ -298,12 +298,20 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 			})
 			braceLevel--
 		case IDENT:
-			p.unscan()
-			item, err := p.scanEntityOrFunction()
-			if err != nil {
-				return nil, err
+			if len(condClause.Sequence) < 1 || condClause.Sequence[len(condClause.Sequence)-1].Token != HAS {
+				p.unscan()
+				item, err := p.scanEntityOrFunction()
+				if err != nil {
+					return nil, err
+				}
+				condClause.Sequence = append(condClause.Sequence, item)
+			} else {
+				condClause.Sequence = append(condClause.Sequence, SequenceItem{
+					Token:      ATTRIBUTE,
+					Literal:    lit,
+					Normalized: lit,
+				})
 			}
-			condClause.Sequence = append(condClause.Sequence, item)
 		case PERIOD:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
 				Token:      tok,

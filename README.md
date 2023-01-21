@@ -33,6 +33,7 @@ Please add `-u` flag to update in the future.
 - [ ] Enforce `Action::` namespace for actions
 - [x] Context object
 - [ ] Set operations
+- [x] `has` operation
 
 ## License
 
