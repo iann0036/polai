@@ -1,8 +1,6 @@
-<p align="center">
-  <a href="https://godoc.org/github.com/iann0036/polai" title="GoDoc">
-    <img src="https://godoc.org/github.com/iann0036/polai?status.svg">
-  </a>
-</p>
+<a href="https://godoc.org/github.com/iann0036/polai" title="GoDoc">
+  <img src="https://godoc.org/github.com/iann0036/polai?status.svg">
+</a>
 
 # polai
 
@@ -15,6 +13,38 @@ $ go get github.com/iann0036/polai
 ```
 
 Please add `-u` flag to update in the future.
+
+## Usage
+
+```go
+package main
+
+import (
+    "fmt"
+
+    "github.com/iann0036/polai"
+)
+
+func main() {
+    e := polai.NewEvaluator(strings.NewReader(`
+    permit (
+        principal == User::"alice",
+        action,
+        resource == Folder::"My Folder"
+    ) when {
+        context.ssl == true
+    };`))
+    result, err := e.Evaluate(`User::"alice"`, `Action::"listFiles"`, `Folder::"My Folder"`, `{
+        "ssl": true
+    }`)
+
+    if result {
+        fmt.Println("Authorized")
+    } else {
+        fmt.Println("Not Authorized")
+    }
+}
+```
 
 ## Features
 
@@ -29,11 +59,11 @@ Please add `-u` flag to update in the future.
 - [x] Inheritance (`in`) within condition block
 - [x] Entity attributes evaluation
 - [x] IP and Decimal extensions
-- [ ] `__expr` syntax in context
-- [ ] Enforce `Action::` namespace for actions
 - [x] Context object
 - [x] Set operations
 - [x] `has` operation
+- [ ] Enforce `Action::` namespace for actions
+- [ ] `__expr` syntax in context
 
 ## License
 
