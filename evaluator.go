@@ -13,23 +13,23 @@ import (
 )
 
 var OP_PRECEDENCE = map[Token]int{
-	AND:         1,
-	OR:          1,
-	EQUALITY:    2,
-	INEQUALITY:  2,
-	LT:          2,
-	LTE:         2,
-	GT:          2,
-	GTE:         2,
-	IN:          2,
-	LIKE:        2,
-	PLUS:        3,
-	DASH:        3,
-	MULTIPLIER:  4,
-	EXCLAMATION: 4,
-	PERIOD:      5,
-	FUNCTION:    6,
-	RIGHT_SQB:   6,
+	AND:         2,
+	OR:          2,
+	EQUALITY:    3,
+	INEQUALITY:  3,
+	LT:          3,
+	LTE:         3,
+	GT:          3,
+	GTE:         3,
+	IN:          3,
+	LIKE:        3,
+	PLUS:        4,
+	DASH:        4,
+	MULTIPLIER:  5,
+	EXCLAMATION: 5,
+	PERIOD:      6,
+	FUNCTION:    7,
+	RIGHT_SQB:   7,
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
@@ -99,6 +99,9 @@ ForbidLoop:
 			}
 			if !stmt.AnyAction {
 				if stmt.Action != "" {
+					if !strings.Contains(stmt.Action, "::Action::\"") && !strings.HasPrefix(stmt.Action, "Action::\"") {
+						return false, fmt.Errorf("actions in scope must use Action:: namespace")
+					}
 					if stmt.Action != action {
 						continue
 					}
@@ -110,6 +113,11 @@ ForbidLoop:
 							descendants, err := e.es.GetEntityDescendents(stmt.ActionParents)
 							if err != nil {
 								return false, err
+							}
+							for _, v := range descendants {
+								if !strings.Contains(v.Identifier, "::Action::\"") && !strings.HasPrefix(v.Identifier, "Action::\"") {
+									return false, fmt.Errorf("actions in scope must use Action:: namespace")
+								}
 							}
 							if !containsEntity(descendants, action) {
 								continue
@@ -187,6 +195,9 @@ PermitLoop:
 			}
 			if !stmt.AnyAction {
 				if stmt.Action != "" {
+					if !strings.Contains(stmt.Action, "::Action::\"") && !strings.HasPrefix(stmt.Action, "Action::\"") {
+						return false, fmt.Errorf("actions in scope must use Action:: namespace")
+					}
 					if stmt.Action != action {
 						continue
 					}
@@ -198,6 +209,11 @@ PermitLoop:
 							descendants, err := e.es.GetEntityDescendents(stmt.ActionParents)
 							if err != nil {
 								return false, err
+							}
+							for _, v := range descendants {
+								if !strings.Contains(v.Identifier, "::Action::\"") && !strings.HasPrefix(v.Identifier, "Action::\"") {
+									return false, fmt.Errorf("actions in scope must use Action:: namespace")
+								}
 							}
 							if !containsEntity(descendants, action) {
 								continue
@@ -297,7 +313,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION, IF, THEN, ELSE:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -326,7 +342,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 		case COMMA:
 		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB:
 			evalStack = append(evalStack, s)
-		case EXCLAMATION:
+		case EXCLAMATION: // TODO: limit to 4x sequentially, also negation unary
 			rhs = evalStack[len(evalStack)-1]
 			evalStack = evalStack[:len(evalStack)-1]
 
@@ -344,6 +360,83 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				})
 			} else {
 				return false, fmt.Errorf("attempted to negate non-boolean")
+			}
+		case IF:
+			thenElseResult := evalStack[len(evalStack)-1]
+			ifResult := evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(evalStack)-2]
+
+			if (ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) ||
+				(ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) ||
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_FALSE_ELSE_TRUE) ||
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      TRUE,
+					Literal:    "true",
+					Normalized: "true",
+				})
+			} else if (ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
+				(ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_TRUE) ||
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      FALSE,
+					Literal:    "false",
+					Normalized: "false",
+				})
+			} else {
+				return false, fmt.Errorf("invalid use of if-then-else block, got %v, %v", ifResult.Token, thenElseResult.Token)
+			}
+		case THEN:
+			elseResult := evalStack[len(evalStack)-1]
+			thenResult := evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(evalStack)-2]
+
+			if thenResult.Token == TRUE && elseResult.Token == ELSE_TRUE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_TRUE_ELSE_TRUE,
+					Literal:    "THEN_TRUE_ELSE_TRUE",
+					Normalized: "THEN_TRUE_ELSE_TRUE",
+				})
+			} else if thenResult.Token == TRUE && elseResult.Token == ELSE_FALSE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_TRUE_ELSE_FALSE,
+					Literal:    "THEN_TRUE_ELSE_FALSE",
+					Normalized: "THEN_TRUE_ELSE_FALSE",
+				})
+			} else if thenResult.Token == FALSE && elseResult.Token == ELSE_TRUE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_FALSE_ELSE_TRUE,
+					Literal:    "THEN_FALSE_ELSE_TRUE",
+					Normalized: "THEN_FALSE_ELSE_TRUE",
+				})
+			} else if thenResult.Token == FALSE && elseResult.Token == ELSE_FALSE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_FALSE_ELSE_FALSE,
+					Literal:    "THEN_FALSE_ELSE_FALSE",
+					Normalized: "THEN_FALSE_ELSE_FALSE",
+				})
+			} else {
+				return false, fmt.Errorf("invalid use of if-then-else block, got %v, %v", thenResult.Token, elseResult.Token)
+			}
+		case ELSE:
+			elseResult := evalStack[len(evalStack)-1]
+			evalStack = evalStack[:len(evalStack)-1]
+
+			if elseResult.Token == TRUE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      ELSE_TRUE,
+					Literal:    "ELSE_TRUE",
+					Normalized: "ELSE_TRUE",
+				})
+			} else if elseResult.Token == FALSE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      ELSE_FALSE,
+					Literal:    "ELSE_FALSE",
+					Normalized: "ELSE_FALSE",
+				})
+			} else {
+				return false, fmt.Errorf("invalid use of if-then-else block, got %v", elseResult.Token)
 			}
 		case FUNCTION:
 			rhs = evalStack[len(evalStack)-1]

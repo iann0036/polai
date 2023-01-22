@@ -88,13 +88,27 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			s: `
 			permit (
 				principal == Namespace::"Identifier",
-				action == Namespace2::"Identifier2",
+				action == Action::"Identifier2",
 				resource == Namespace3::"Identifier3"
 			);`,
 			principal:      "Namespace::\"Identifier\"",
-			action:         "Namespace2::\"Identifier2\"",
+			action:         "Action::\"Identifier2\"",
 			resource:       "Namespace3::\"Identifier3\"",
 			expectedResult: true,
+		},
+
+		// Enforce scope check
+		{
+			s: `
+			permit (
+				principal,
+				action == Namespace2::"Identifier2",
+				resource
+			);`,
+			principal: "Namespace::\"Identifier\"",
+			action:    "Namespace2::\"Identifier2\"",
+			resource:  "Namespace3::\"Identifier3\"",
+			err:       "actions in scope must use Action:: namespace",
 		},
 
 		// Scope with in set
@@ -103,6 +117,20 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			permit (
 				principal,
 				action in [ Namespace::"Identifier", Namespace2::"Identifier2" ],
+				resource
+			);`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Namespace::\"Identifier\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Scope with in set (implied)
+		{
+			s: `
+			permit (
+				principal,
+				action in Namespace::"Identifier",
 				resource
 			);`,
 			principal:      "Principal::\"MyPrincipal\"",
@@ -1056,6 +1084,38 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				[1, 2, 3].containsAny([6, 5, 4])
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
+		// if-then-else
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if true then true else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// if-then-else (negate)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if false then true else false
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",
