@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	match "github.com/iann0036/match-wildcard"
 )
 
 var OP_PRECEDENCE = map[Token]int{
@@ -20,6 +22,7 @@ var OP_PRECEDENCE = map[Token]int{
 	GT:          2,
 	GTE:         2,
 	IN:          2,
+	LIKE:        2,
 	PLUS:        3,
 	DASH:        3,
 	MULTIPLIER:  4,
@@ -35,6 +38,7 @@ var LEFT_ASSOCIATIVE = map[Token]bool{
 	GT:          true,
 	GTE:         true,
 	IN:          true,
+	LIKE:        true,
 	DASH:        true,
 	EXCLAMATION: true,
 	PERIOD:      true,
@@ -293,7 +297,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, PERIOD, EXCLAMATION:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -780,6 +784,40 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				Literal:    string(b),
 				Normalized: string(b),
 			})
+		case LIKE:
+			rhs = evalStack[len(evalStack)-1]
+			lhs = evalStack[len(evalStack)-2]
+			evalStack = evalStack[:len(evalStack)-2]
+
+			if lhs.Token == DBLQUOTESTR {
+				if rhs.Token == DBLQUOTESTR {
+					matched, stopped := match.MatchLimit(lhs.Normalized, rhs.Normalized, 100)
+					if stopped {
+						return false, fmt.Errorf("string match too complex")
+					}
+					if matched {
+						evalStack = append(evalStack, SequenceItem{
+							Token:      TRUE,
+							Literal:    "true",
+							Normalized: "true",
+						})
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:      FALSE,
+							Literal:    "false",
+							Normalized: "false",
+						})
+					}
+				} else {
+					evalStack = append(evalStack, SequenceItem{
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
+					})
+				}
+			} else {
+				return false, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
+			}
 		case IN:
 			rhs = evalStack[len(evalStack)-1]
 			lhs = evalStack[len(evalStack)-2]

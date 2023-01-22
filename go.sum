@@ -1,2 +1,4 @@
+github.com/iann0036/match-wildcard v0.0.0-20230122003534-a422d2c9fc39 h1:+ZCvQ33TfoJUsGe2RQz2YSStC8QD6F6REW/pnmL/Y84=
+github.com/iann0036/match-wildcard v0.0.0-20230122003534-a422d2c9fc39/go.mod h1:bmBPYQLVqo35MMD7tzoeoKSiyXT+Aw9mYQbc9ccxcak=
 golang.org/x/exp v0.0.0-20230113213754-f9f960f08ad4 h1:CNkDRtCj8otM5CFz5jYvbr8ioXX8flVsLfDWEj0M5kk=
 golang.org/x/exp v0.0.0-20230113213754-f9f960f08ad4/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=

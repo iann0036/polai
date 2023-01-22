@@ -235,6 +235,27 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// like operator
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				"abc" like "abc" &&
+				"abc" like "a*c" &&
+				"abc" like "a*" &&
+				"abc" like "*" &&
+				!("abc" like "b*c") &&
+				"abc" like "a**bc"
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// Mix eventual types
 		{
 			s: `

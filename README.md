@@ -64,6 +64,9 @@ func main() {
 - [x] Set operations
 - [x] `has` operation
 - [x] Logical not `!` operation
+- [x] `like` operator
+- [ ] if-then-else ternary
+- [ ] `-` unary
 - [ ] Enforce `Action::` namespace for actions
 - [ ] `__expr` syntax in context
 
