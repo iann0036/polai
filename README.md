@@ -4,7 +4,7 @@
 
 # polai
 
-> A Cedar policy language lexer, parser & evaluator
+> A [Cedar](https://www.cedarpolicy.com/) policy language lexer, parser & evaluator
 
 ## Installation
 
