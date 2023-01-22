@@ -4,7 +4,8 @@
   <img src="https://godoc.org/github.com/iann0036/polai?status.svg">
 </a>
 
-> A Cedar policy language lexer, parser & evaluator
+
+A Cedar policy language lexer, parser & evaluator.
 
 ## Installation
 
