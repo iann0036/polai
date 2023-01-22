@@ -11,32 +11,34 @@ import (
 )
 
 var OP_PRECEDENCE = map[Token]int{
-	AND:        1,
-	OR:         1,
-	EQUALITY:   2,
-	INEQUALITY: 2,
-	LT:         2,
-	LTE:        2,
-	GT:         2,
-	GTE:        2,
-	IN:         2,
-	PLUS:       3,
-	DASH:       3,
-	MULTIPLIER: 4,
-	PERIOD:     5,
-	FUNCTION:   6,
-	RIGHT_SQB:  6,
+	AND:         1,
+	OR:          1,
+	EQUALITY:    2,
+	INEQUALITY:  2,
+	LT:          2,
+	LTE:         2,
+	GT:          2,
+	GTE:         2,
+	IN:          2,
+	PLUS:        3,
+	DASH:        3,
+	MULTIPLIER:  4,
+	EXCLAMATION: 4,
+	PERIOD:      5,
+	FUNCTION:    6,
+	RIGHT_SQB:   6,
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
-	LT:       true,
-	LTE:      true,
-	GT:       true,
-	GTE:      true,
-	IN:       true,
-	DASH:     true,
-	PERIOD:   true,
-	FUNCTION: true,
+	LT:          true,
+	LTE:         true,
+	GT:          true,
+	GTE:         true,
+	IN:          true,
+	DASH:        true,
+	EXCLAMATION: true,
+	PERIOD:      true,
+	FUNCTION:    true,
 }
 
 // Evaluator represents an evaluator.
@@ -254,18 +256,18 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			outputQueue = append(outputQueue, s)
 		case PRINCIPAL:
 			s.Token = ENTITY
-			s.Literal = principal
+			s.Normalized = principal
 			outputQueue = append(outputQueue, s)
 		case ACTION:
 			s.Token = ENTITY
-			s.Literal = action
+			s.Normalized = action
 			outputQueue = append(outputQueue, s)
 		case RESOURCE:
 			s.Token = ENTITY
-			s.Literal = resource
+			s.Normalized = resource
 			outputQueue = append(outputQueue, s)
 		case CONTEXT:
-			s.Literal = context
+			s.Normalized = context
 			outputQueue = append(outputQueue, s)
 		case LEFT_SQB:
 			outputQueue = append(outputQueue, s)
@@ -291,7 +293,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, PERIOD:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, PERIOD, EXCLAMATION:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -320,11 +322,30 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 		case COMMA:
 		case TRUE, FALSE, INT, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB:
 			evalStack = append(evalStack, s)
+		case EXCLAMATION:
+			rhs = evalStack[len(evalStack)-1]
+			evalStack = evalStack[:len(evalStack)-1]
+
+			if rhs.Token == TRUE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      FALSE,
+					Literal:    "false",
+					Normalized: "false",
+				})
+			} else if rhs.Token == FALSE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      TRUE,
+					Literal:    "true",
+					Normalized: "true",
+				})
+			} else {
+				return false, fmt.Errorf("attempted to negate non-boolean")
+			}
 		case FUNCTION:
 			rhs = evalStack[len(evalStack)-1]
 			lit := rhs.Normalized
 
-			if s.Literal == "ip" {
+			if s.Normalized == "ip" {
 				evalStack = evalStack[:len(evalStack)-1]
 
 				normalized := lit
@@ -344,7 +365,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					Literal:    lit,
 					Normalized: ipNet.String(),
 				})
-			} else if s.Literal == "decimal" {
+			} else if s.Normalized == "decimal" {
 				evalStack = evalStack[:len(evalStack)-1]
 
 				i := strings.IndexByte(lit, '.')
@@ -371,7 +392,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			evalStack = evalStack[:len(evalStack)-2]
 
 			if lhs.Token == CONTEXT && rhs.Token == ATTRIBUTE {
-				item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+				item, err := e.getAttributeAttributeSequenceItem(lhs.Normalized, rhs.Normalized)
 				if err != nil {
 					return false, err
 				}
@@ -380,27 +401,27 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				if e.es == nil {
 					return false, fmt.Errorf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token)
 				} else {
-					item, err := e.getEntityAttributeSequenceItem(lhs.Literal, rhs.Literal)
+					item, err := e.getEntityAttributeSequenceItem(lhs.Normalized, rhs.Normalized)
 					if err != nil {
 						return false, err
 					}
 					evalStack = append(evalStack, item)
 				}
 			} else if lhs.Token == ATTRIBUTE && rhs.Token == ATTRIBUTE {
-				item, err := e.getAttributeAttributeSequenceItem(lhs.Literal, rhs.Literal)
+				item, err := e.getAttributeAttributeSequenceItem(lhs.Normalized, rhs.Normalized)
 				if err != nil {
 					return false, err
 				}
 				evalStack = append(evalStack, item)
 			} else if rhs.Token == FUNCTION {
-				if rhs.Literal == "contains" {
+				if rhs.Normalized == "contains" {
 					actualLhs := evalStack[len(evalStack)-1]
 					evalStack = evalStack[:len(evalStack)-1]
 					if actualLhs.Token != SET {
 						return false, fmt.Errorf("unexpected use of contains function")
 					}
 					var actualLhsSet []interface{}
-					err := json.Unmarshal([]byte(actualLhs.Literal), &actualLhsSet)
+					err := json.Unmarshal([]byte(actualLhs.Normalized), &actualLhsSet)
 					if err != nil {
 						return false, err
 					}
@@ -421,14 +442,14 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					}
 					evalStack = append(evalStack, item)
 				} else if lhs.Token == SET {
-					if rhs.Literal == "containsAll" {
+					if rhs.Normalized == "containsAll" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 						if actualLhs.Token != SET {
 							return false, fmt.Errorf("unexpected use of contains function")
 						}
 						var actualLhsSet []interface{}
-						err := json.Unmarshal([]byte(actualLhs.Literal), &actualLhsSet)
+						err := json.Unmarshal([]byte(actualLhs.Normalized), &actualLhsSet)
 						if err != nil {
 							return false, err
 						}
@@ -460,14 +481,14 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 							}
 						}
 						evalStack = append(evalStack, item)
-					} else if rhs.Literal == "containsAny" {
+					} else if rhs.Normalized == "containsAny" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 						if actualLhs.Token != SET {
 							return false, fmt.Errorf("unexpected use of contains function")
 						}
 						var actualLhsSet []interface{}
-						err := json.Unmarshal([]byte(actualLhs.Literal), &actualLhsSet)
+						err := json.Unmarshal([]byte(actualLhs.Normalized), &actualLhsSet)
 						if err != nil {
 							return false, err
 						}
@@ -499,7 +520,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						return false, fmt.Errorf("unknown function: %s", rhs.Literal)
 					}
 				} else if lhs.Token == IP {
-					if rhs.Literal == "isIpv4" {
+					if rhs.Normalized == "isIpv4" {
 						if strings.Count(lhs.Normalized, ":") < 2 {
 							evalStack = append(evalStack, SequenceItem{
 								Token:      TRUE,
@@ -513,7 +534,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "isIpv6" {
+					} else if rhs.Normalized == "isIpv6" {
 						if strings.Count(lhs.Normalized, ":") >= 2 {
 							evalStack = append(evalStack, SequenceItem{
 								Token:      TRUE,
@@ -527,7 +548,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "isInRange" {
+					} else if rhs.Normalized == "isInRange" {
 						insideRange := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 
@@ -563,7 +584,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "isLoopback" {
+					} else if rhs.Normalized == "isLoopback" {
 						_, ipNet, err := net.ParseCIDR(lhs.Normalized)
 						if err != nil {
 							return false, fmt.Errorf("invalid IP")
@@ -592,7 +613,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "isMulticast" {
+					} else if rhs.Normalized == "isMulticast" {
 						_, ipNet, err := net.ParseCIDR(lhs.Normalized)
 						if err != nil {
 							return false, fmt.Errorf("invalid IP")
@@ -625,7 +646,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						return false, fmt.Errorf("unknown IP function: %s", rhs.Literal)
 					}
 				} else if lhs.Token == DECIMAL {
-					if rhs.Literal == "lessThan" {
+					if rhs.Normalized == "lessThan" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 
@@ -651,7 +672,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "lessThanOrEqual" {
+					} else if rhs.Normalized == "lessThanOrEqual" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 
@@ -677,7 +698,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "greaterThan" {
+					} else if rhs.Normalized == "greaterThan" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 
@@ -703,7 +724,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						}
-					} else if rhs.Literal == "greaterThanOrEqual" {
+					} else if rhs.Normalized == "greaterThanOrEqual" {
 						actualLhs := evalStack[len(evalStack)-1]
 						evalStack = evalStack[:len(evalStack)-1]
 
@@ -766,7 +787,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 
 			if lhs.Token == ENTITY {
 				if rhs.Token == ENTITY {
-					if lhs.Literal == rhs.Literal {
+					if lhs.Normalized == rhs.Normalized {
 						evalStack = append(evalStack, SequenceItem{
 							Token:      TRUE,
 							Literal:    "true",
@@ -780,11 +801,11 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 								Normalized: "false",
 							})
 						} else {
-							descendants, err := e.es.GetEntityDescendents([]string{rhs.Literal})
+							descendants, err := e.es.GetEntityDescendents([]string{rhs.Normalized})
 							if err != nil {
 								return false, err
 							}
-							if containsEntity(descendants, lhs.Literal) {
+							if containsEntity(descendants, lhs.Normalized) {
 								evalStack = append(evalStack, SequenceItem{
 									Token:      TRUE,
 									Literal:    "true",
@@ -835,9 +856,9 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 						}
 
 						for _, entity := range entities {
-							if entity.Identifier == lhs.Literal {
+							if entity.Identifier == lhs.Normalized {
 								for _, attribute := range entity.Attributes {
-									if attribute.Name == rhs.Literal {
+									if attribute.Name == rhs.Normalized {
 										item = SequenceItem{
 											Token:      TRUE,
 											Literal:    "true",
@@ -863,11 +884,11 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 
 			if lhs.Token == INT {
 				if rhs.Token == INT {
-					lhsL, err := strconv.ParseInt(lhs.Literal, 10, 64)
+					lhsL, err := strconv.ParseInt(lhs.Normalized, 10, 64)
 					if err != nil {
 						return false, err
 					}
-					rhsL, err := strconv.ParseInt(rhs.Literal, 10, 64)
+					rhsL, err := strconv.ParseInt(rhs.Normalized, 10, 64)
 					if err != nil {
 						return false, err
 					}
@@ -974,7 +995,54 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				}
 			} else if lhs.Token == IP {
 				if rhs.Token == IP {
-					if net.ParseIP(lhs.Literal).Equal(net.ParseIP(rhs.Literal)) {
+					// needs to compare individual IPs and CIDR form
+					normalized := lhs.Normalized
+					if !strings.Contains(normalized, "/") {
+						if strings.Count(normalized, ":") >= 2 {
+							normalized += "/128"
+						} else {
+							normalized += "/32"
+						}
+					}
+					_, lhsNet, err := net.ParseCIDR(normalized)
+					if err != nil {
+						return false, fmt.Errorf("invalid ip")
+					}
+
+					normalized = rhs.Normalized
+					if !strings.Contains(normalized, "/") {
+						if strings.Count(normalized, ":") >= 2 {
+							normalized += "/128"
+						} else {
+							normalized += "/32"
+						}
+					}
+					_, rhsNet, err := net.ParseCIDR(normalized)
+					if err != nil {
+						return false, fmt.Errorf("invalid ip")
+					}
+
+					for i := range lhsNet.IP {
+						lhsNet.IP[i] &= lhsNet.Mask[i]
+					}
+					firstIPInLhsCIDR := lhsNet.IP
+
+					for i := range lhsNet.IP {
+						lhsNet.IP[i] |= ^lhsNet.Mask[i]
+					}
+					lastIPInLhsCIDR := lhsNet.IP
+
+					for i := range rhsNet.IP {
+						rhsNet.IP[i] &= rhsNet.Mask[i]
+					}
+					firstIPInRhsCIDR := rhsNet.IP
+
+					for i := range rhsNet.IP {
+						rhsNet.IP[i] |= ^rhsNet.Mask[i]
+					}
+					lastIPInRhsCIDR := rhsNet.IP
+
+					if firstIPInLhsCIDR.String() == firstIPInRhsCIDR.String() && lastIPInLhsCIDR.String() == lastIPInRhsCIDR.String() {
 						evalStack = append(evalStack, SequenceItem{
 							Token:      TRUE,
 							Literal:    "true",
@@ -1036,7 +1104,54 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				}
 			} else if lhs.Token == IP {
 				if rhs.Token == IP {
-					if net.ParseIP(lhs.Literal).Equal(net.ParseIP(rhs.Literal)) {
+					// needs to compare individual IPs and CIDR form
+					normalized := lhs.Normalized
+					if !strings.Contains(normalized, "/") {
+						if strings.Count(normalized, ":") >= 2 {
+							normalized += "/128"
+						} else {
+							normalized += "/32"
+						}
+					}
+					_, lhsNet, err := net.ParseCIDR(normalized)
+					if err != nil {
+						return false, fmt.Errorf("invalid ip")
+					}
+
+					normalized = rhs.Normalized
+					if !strings.Contains(normalized, "/") {
+						if strings.Count(normalized, ":") >= 2 {
+							normalized += "/128"
+						} else {
+							normalized += "/32"
+						}
+					}
+					_, rhsNet, err := net.ParseCIDR(normalized)
+					if err != nil {
+						return false, fmt.Errorf("invalid ip")
+					}
+
+					for i := range lhsNet.IP {
+						lhsNet.IP[i] &= lhsNet.Mask[i]
+					}
+					firstIPInLhsCIDR := lhsNet.IP
+
+					for i := range lhsNet.IP {
+						lhsNet.IP[i] |= ^lhsNet.Mask[i]
+					}
+					lastIPInLhsCIDR := lhsNet.IP
+
+					for i := range rhsNet.IP {
+						rhsNet.IP[i] &= rhsNet.Mask[i]
+					}
+					firstIPInRhsCIDR := rhsNet.IP
+
+					for i := range rhsNet.IP {
+						rhsNet.IP[i] |= ^rhsNet.Mask[i]
+					}
+					lastIPInRhsCIDR := rhsNet.IP
+
+					if firstIPInLhsCIDR.String() == firstIPInRhsCIDR.String() && lastIPInLhsCIDR.String() == lastIPInRhsCIDR.String() {
 						evalStack = append(evalStack, SequenceItem{
 							Token:      FALSE,
 							Literal:    "false",

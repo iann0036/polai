@@ -187,6 +187,54 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// Basic with negation
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				!true
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
+		// Basic with negation 2
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				!(2 > 3)
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// Basic with negation 3
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				!(principal == Principal::"MyPrincipal")
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
 		// Mix eventual types
 		{
 			s: `

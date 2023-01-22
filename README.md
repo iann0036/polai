@@ -63,6 +63,7 @@ func main() {
 - [x] Context object
 - [x] Set operations
 - [x] `has` operation
+- [x] Logical not `!` operation
 - [ ] Enforce `Action::` namespace for actions
 - [ ] `__expr` syntax in context
 
