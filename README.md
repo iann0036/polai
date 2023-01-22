@@ -1,10 +1,8 @@
-<a href="https://godoc.org/github.com/iann0036/polai" title="GoDoc">
-  <img src="https://godoc.org/github.com/iann0036/polai?status.svg">
-</a>
-
 # polai
 
-> A [Cedar](https://www.cedarpolicy.com/) policy language lexer, parser & evaluator
+[![GoDoc](https://godoc.org/github.com/iann0036/polai?status.svg)](https://godoc.org/github.com/iann0036/polai)
+
+A [Cedar](https://www.cedarpolicy.com/) policy language lexer, parser & evaluator.
 
 ## Installation
 
