@@ -65,7 +65,7 @@ func main() {
 - [x] `like` operator
 - [x] if-then-else ternary
 - [x] Enforce `Action::` namespace for actions
-- [ ] `__expr` syntax in context
+- [ ] `__expr` syntax in context / entities
 
 ## License
 

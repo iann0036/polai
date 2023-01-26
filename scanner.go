@@ -38,7 +38,7 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 			ch = s.read()
 		}
 		s.unread()
-		return INT, lit
+		return LONG, lit
 	}
 
 	// Otherwise read the individual character.
@@ -98,7 +98,7 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 			ch = s.read()
 		}
 		s.unread()
-		return INT, lit
+		return LONG, lit
 	case '"':
 		for {
 			ch = s.read()

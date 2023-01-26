@@ -11,7 +11,7 @@ const (
 
 	// Literals
 	IDENT       // unknown identifier
-	INT         // 123 | -123
+	LONG        // 123 | -123
 	DBLQUOTESTR // "...abc..."
 	COMMENT     // // ...abc...
 

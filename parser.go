@@ -339,8 +339,7 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 					Normalized: lit,
 				})
 			}
-		// TODO: INT to LONG
-		case INT:
+		case LONG:
 			i, err := strconv.ParseInt(lit, 10, 64)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing long")
@@ -356,7 +355,6 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 				Literal:    lit,
 				Normalized: strings.TrimSuffix(strings.TrimPrefix(lit, "\""), "\""),
 			})
-		// TODO: align possible token sequences to spec
 		case TRUE, FALSE, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
 				Token:      tok,
@@ -374,7 +372,7 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 }
 
 // scanEntity scans an entity type
-func (p *Parser) scanEntity() (entityName string, err error) { // TODO: deprecate?
+func (p *Parser) scanEntity() (entityName string, err error) {
 	tok, lit := p.scanIgnoreWhitespace()
 	entityName = lit
 

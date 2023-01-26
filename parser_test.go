@@ -181,9 +181,9 @@ func TestParser_ParseStatement(t *testing.T) {
 						{
 							Type: polai.WHEN,
 							Sequence: []polai.SequenceItem{
-								{Token: polai.INT, Literal: "123", Normalized: "123"},
+								{Token: polai.LONG, Literal: "123", Normalized: "123"},
 								{Token: polai.EQUALITY, Literal: "==", Normalized: "=="},
-								{Token: polai.INT, Literal: "0123", Normalized: "123"},
+								{Token: polai.LONG, Literal: "0123", Normalized: "123"},
 							},
 						},
 					},
