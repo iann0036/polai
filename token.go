@@ -8,6 +8,7 @@ const (
 	ILLEGAL Token = iota
 	EOF
 	WHITESPC
+	ERROR
 
 	// Literals
 	IDENT       // unknown identifier

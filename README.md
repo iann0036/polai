@@ -65,9 +65,10 @@ func main() {
 - [x] `like` operator
 - [x] if-then-else ternary
 - [x] Enforce `Action::` namespace for actions
+- [x] `&&` and `||` short-circuiting
+- [ ] `if-then-else` short-circuiting
 - [ ] `__expr` syntax in context / entities
 - [ ] Policy templates
-- [ ] Left-to-right resolution of truthyness
 
 ## License
 

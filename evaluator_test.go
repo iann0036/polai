@@ -11,14 +11,15 @@ import (
 // Ensure the evaluator produces correct results.
 func TestEvaluator_EvaluateStatement(t *testing.T) {
 	var tests = []struct {
-		s              string
-		expectedResult bool
-		principal      string
-		action         string
-		resource       string
-		context        string
-		entities       string
-		err            string
+		s                      string
+		disableShortCircuiting bool
+		expectedResult         bool
+		principal              string
+		action                 string
+		resource               string
+		context                string
+		entities               string
+		err                    string
 	}{
 		// Literally nothing
 		{
@@ -659,8 +660,12 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				1 == 1
-			} when {
+			} unless {
 				2 == 1
+			} when {
+				2 == 2
+			} unless {
+				1 == 2
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",
@@ -814,7 +819,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			err: "attribute not set",
 		},
 
-		// LTR processing
+		// Short-circuit processing
 		{
 			s: `
 			permit (
@@ -829,6 +834,24 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			resource:       "Resource::\"MyResource\"",
 			context:        `{}`,
 			expectedResult: true,
+		},
+
+		// Short-circuit processing, short-circuit disabled
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				true || context.x == "abc"
+			};`,
+			disableShortCircuiting: true,
+			principal:              "Principal::\"MyPrincipal\"",
+			action:                 "Action::\"MyAction\"",
+			resource:               "Resource::\"MyResource\"",
+			context:                `{}`,
+			err:                    "attribute not set",
 		},
 
 		// entity attributes
@@ -1231,6 +1254,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// if-then-else embedded
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if if true then true else false then true else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// if-then-else (negate)
 		{
 			s: `
@@ -1255,6 +1294,9 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		e := polai.NewEvaluator(strings.NewReader(tt.s))
 		if tt.entities != "" {
 			e.SetEntities(strings.NewReader(tt.entities))
+		}
+		if tt.disableShortCircuiting {
+			e.AllowShortCircuiting = false
 		}
 		result, err := e.Evaluate(tt.principal, tt.action, tt.resource, tt.context)
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
