@@ -66,6 +66,8 @@ func main() {
 - [x] if-then-else ternary
 - [x] Enforce `Action::` namespace for actions
 - [ ] `__expr` syntax in context / entities
+- [ ] Policy templates
+- [ ] Left-to-right resolution of truthyness
 
 ## License
 

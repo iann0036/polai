@@ -64,7 +64,7 @@ func (p *Parser) Parse() (*[]PolicyStatement, error) {
 
 	tok, lit := p.scanIgnoreWhitespace()
 	if tok == EOF {
-		return nil, fmt.Errorf("no policy statements found")
+		return &stmts, nil
 	}
 
 	for tok != EOF {

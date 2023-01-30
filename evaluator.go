@@ -33,6 +33,7 @@ var OP_PRECEDENCE = map[Token]int{
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
+	OR:          true, // annoying quirk where rhs isn't evaluated if lhs is true
 	LT:          true,
 	LTE:         true,
 	GT:          true,
@@ -371,7 +372,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			} else {
 				return SequenceItem{}, fmt.Errorf("attempted to negate non-boolean")
 			}
-		case IF:
+		case IF: // TODO: assert if-then-else at start of sequence
 			thenElseResult := evalStack[len(evalStack)-1]
 			ifResult := evalStack[len(evalStack)-2]
 			evalStack = evalStack[:len(evalStack)-2]

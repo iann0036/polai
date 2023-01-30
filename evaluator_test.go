@@ -20,6 +20,15 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		entities       string
 		err            string
 	}{
+		// Literally nothing
+		{
+			s:              ``,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
 		// Basic permit
 		{
 			s: `
@@ -120,7 +129,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			);`,
 			principal:      "Principal::\"MyPrincipal\"",
-			action:         "Namespace::\"Identifier\"",
+			action:         "Namespace2::\"Identifier2\"",
 			resource:       "Resource::\"MyResource\"",
 			expectedResult: true,
 		},
@@ -261,6 +270,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			action:         "Action::\"MyAction\"",
 			resource:       "Resource::\"MyResource\"",
 			expectedResult: false,
+		},
+
+		// Mix type equality
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				principal == resource
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Principal::\"MyPrincipal\"",
+			expectedResult: true,
 		},
 
 		// like operator
@@ -463,6 +488,41 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// in operator (scope, with square bracket)
+		{
+			s: `
+			permit (
+				principal in Principal::"Parent",
+				action in [ Action::"Parent" ],
+				resource in Resource::"Parent"
+			);`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"parents": [
+						"Principal::\"Parent\""
+					]
+				},
+				{
+					"uid": "Action::\"MyAction\"",
+					"parents": [
+						"Action::\"Parent\""
+					]
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"parents": [
+						"Resource::\"Parent\""
+					]
+				}
+			]`,
+			expectedResult: true,
+		},
+
 		// in operator (scope, invariant)
 		{
 			s: `
@@ -590,6 +650,24 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// when double
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				1 == 1
+			} when {
+				2 == 1
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// in operator (condition, deep)
 		{
 			s: `
@@ -704,6 +782,52 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				},
 				"l": ["def"]
 			}`,
+			expectedResult: true,
+		},
+
+		// context unset
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				context.x == "abc"
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			context: `
+			{
+				"s": "abc",
+				"i": 123,
+				"b": true,
+				"r": {
+					"s": "abc",
+					"i": 123,
+					"b": true,
+					"l": ["def"]
+				},
+				"l": ["def"]
+			}`,
+			err: "attribute not set",
+		},
+
+		// LTR processing
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				true || context.x == "abc"
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			context:        `{}`,
 			expectedResult: true,
 		},
 
