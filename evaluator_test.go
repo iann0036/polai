@@ -1286,6 +1286,72 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		// if-then-else shortcircuit true
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if true then true else principal.invalidprop
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// if-then-else shortcircuit false
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if false then principal.invalidprop else true
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		// if-then-else shortcircuit true (shortcircuit disabled)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if true then true else principal.invalidprop
+			};`,
+			disableShortCircuiting: true,
+			principal:              "Principal::\"MyPrincipal\"",
+			action:                 "Action::\"MyAction\"",
+			resource:               "Resource::\"MyResource\"",
+			err:                    `invalid attribute access (no entities available): '\x1e' (30)`,
+		},
+
+		// if-then-else shortcircuit false (shortcircuit disabled)
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if false then principal.invalidprop else true
+			};`,
+			disableShortCircuiting: true,
+			principal:              "Principal::\"MyPrincipal\"",
+			action:                 "Action::\"MyAction\"",
+			resource:               "Resource::\"MyResource\"",
+			err:                    `invalid attribute access (no entities available): '\x1e' (30)`,
+		},
+
 		// Errors
 		{s: `foo`, err: `found "foo", expected permit or forbid`},
 	}

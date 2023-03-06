@@ -66,7 +66,7 @@ func main() {
 - [x] if-then-else ternary
 - [x] Enforce `Action::` namespace for actions
 - [x] `&&` and `||` short-circuiting
-- [ ] `if-then-else` short-circuiting
+- [x] `if-then-else` short-circuiting
 - [ ] `__expr` syntax in context / entities
 - [ ] Policy templates
 

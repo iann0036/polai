@@ -390,39 +390,59 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			ifResult := evalStack[len(evalStack)-2]
 			evalStack = evalStack[:len(evalStack)-2]
 
-			if bubbleErrors(&evalStack, ifResult, thenElseResult) {
-				continue
-			}
-
-			if (ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) ||
+			if e.AllowShortCircuiting && ((ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) ||
 				(ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) ||
+				(ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_ERROR) ||
 				(ifResult.Token == FALSE && thenElseResult.Token == THEN_FALSE_ELSE_TRUE) ||
-				(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) {
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) ||
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_ERROR_ELSE_TRUE)) {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      TRUE,
 					Literal:    "true",
 					Normalized: "true",
 				})
-			} else if (ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
+			} else if e.AllowShortCircuiting && ((ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
 				(ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_TRUE) ||
+				(ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_ERROR) ||
 				(ifResult.Token == FALSE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
-				(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) {
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) ||
+				(ifResult.Token == FALSE && thenElseResult.Token == THEN_ERROR_ELSE_FALSE)) {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      FALSE,
 					Literal:    "false",
 					Normalized: "false",
 				})
 			} else {
-				return SequenceItem{}, fmt.Errorf("invalid use of if-then-else block, got %v, %v", ifResult.Token, thenElseResult.Token)
+				if bubbleErrors(&evalStack, ifResult, thenElseResult) {
+					continue
+				}
+
+				if (ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) ||
+					(ifResult.Token == TRUE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) ||
+					(ifResult.Token == FALSE && thenElseResult.Token == THEN_FALSE_ELSE_TRUE) ||
+					(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_TRUE) {
+					evalStack = append(evalStack, SequenceItem{
+						Token:      TRUE,
+						Literal:    "true",
+						Normalized: "true",
+					})
+				} else if (ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
+					(ifResult.Token == TRUE && thenElseResult.Token == THEN_FALSE_ELSE_TRUE) ||
+					(ifResult.Token == FALSE && thenElseResult.Token == THEN_FALSE_ELSE_FALSE) ||
+					(ifResult.Token == FALSE && thenElseResult.Token == THEN_TRUE_ELSE_FALSE) {
+					evalStack = append(evalStack, SequenceItem{
+						Token:      FALSE,
+						Literal:    "false",
+						Normalized: "false",
+					})
+				} else {
+					return SequenceItem{}, fmt.Errorf("invalid use of if-then-else block, got if %v, then-else %v", ifResult.Token, thenElseResult.Token)
+				}
 			}
 		case THEN:
 			elseResult := evalStack[len(evalStack)-1]
 			thenResult := evalStack[len(evalStack)-2]
 			evalStack = evalStack[:len(evalStack)-2]
-
-			if bubbleErrors(&evalStack, thenResult, elseResult) {
-				continue
-			}
 
 			if thenResult.Token == TRUE && elseResult.Token == ELSE_TRUE {
 				evalStack = append(evalStack, SequenceItem{
@@ -436,6 +456,12 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					Literal:    "THEN_TRUE_ELSE_FALSE",
 					Normalized: "THEN_TRUE_ELSE_FALSE",
 				})
+			} else if thenResult.Token == TRUE && elseResult.Token == ERROR {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_TRUE_ELSE_ERROR,
+					Literal:    elseResult.Literal,
+					Normalized: elseResult.Normalized,
+				})
 			} else if thenResult.Token == FALSE && elseResult.Token == ELSE_TRUE {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      THEN_FALSE_ELSE_TRUE,
@@ -448,8 +474,31 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					Literal:    "THEN_FALSE_ELSE_FALSE",
 					Normalized: "THEN_FALSE_ELSE_FALSE",
 				})
+			} else if thenResult.Token == FALSE && elseResult.Token == ERROR {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_FALSE_ELSE_ERROR,
+					Literal:    elseResult.Literal,
+					Normalized: elseResult.Normalized,
+				})
+			} else if thenResult.Token == ERROR && elseResult.Token == ELSE_TRUE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_ERROR_ELSE_TRUE,
+					Literal:    thenResult.Literal,
+					Normalized: thenResult.Normalized,
+				})
+			} else if thenResult.Token == ERROR && elseResult.Token == ELSE_FALSE {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      THEN_ERROR_ELSE_FALSE,
+					Literal:    thenResult.Literal,
+					Normalized: thenResult.Normalized,
+				})
 			} else {
-				return SequenceItem{}, fmt.Errorf("invalid use of if-then-else block, got %v, %v", thenResult.Token, elseResult.Token)
+				evalStack = append(evalStack, SequenceItem{
+					Token:      ERROR,
+					Literal:    fmt.Sprintf("invalid use of if-then-else block, got then %v, else %v", thenResult.Token, elseResult.Token),
+					Normalized: fmt.Sprintf("invalid use of if-then-else block, got then %v, else %v", thenResult.Token, elseResult.Token),
+				})
+				continue
 			}
 		case ELSE:
 			elseResult := evalStack[len(evalStack)-1]
@@ -472,7 +521,12 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					Normalized: "ELSE_FALSE",
 				})
 			} else {
-				return SequenceItem{}, fmt.Errorf("invalid use of if-then-else block, got %v", elseResult.Token)
+				evalStack = append(evalStack, SequenceItem{
+					Token:      ERROR,
+					Literal:    fmt.Sprintf("invalid use of if-then-else block, got else %v", elseResult.Token),
+					Normalized: fmt.Sprintf("invalid use of if-then-else block, got else %v", elseResult.Token),
+				})
+				continue
 			}
 		case FUNCTION:
 			rhs = evalStack[len(evalStack)-1]
@@ -1937,7 +1991,7 @@ func bubbleErrors(evalStack *[]SequenceItem, items ...SequenceItem) bool {
 	var foundErrors []string
 
 	for _, item := range items {
-		if item.Token == ERROR {
+		if item.Token == ERROR || item.Token == THEN_TRUE_ELSE_ERROR || item.Token == THEN_FALSE_ELSE_ERROR || item.Token == THEN_ERROR_ELSE_TRUE || item.Token == THEN_ERROR_ELSE_FALSE {
 			foundErrors = append(foundErrors, item.Literal)
 			bubbleOccurred = true
 		}
