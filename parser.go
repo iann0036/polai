@@ -42,7 +42,7 @@ type SequenceItem struct {
 	Literal    string
 	Normalized string
 
-	RecordKeyValuePairs map[string][]SequenceItem
+	RecordKeyValuePairs map[string]SequenceItem
 }
 
 // Parser represents a parser.

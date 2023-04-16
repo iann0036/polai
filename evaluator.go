@@ -642,6 +642,8 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				continue
 			}
 
+			// TODO: Record attribute handling
+
 			if lhs.Token == CONTEXT && rhs.Token == ATTRIBUTE {
 				item, err := e.getAttributeAttributeSequenceItem(lhs.Normalized, rhs.Normalized)
 				if err != nil {
@@ -1216,7 +1218,17 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					if rhs.Token == DBLQUOTESTR || rhs.Token == RECORDKEY {
 						_, ok := record.RecordKeyValuePairs[rhs.Normalized]
 						if !ok { // set only if not already set
-							record.RecordKeyValuePairs[rhs.Normalized] = vals
+							// evaluate the inner expr value
+							condEvalResult, err := e.condEval(ConditionClause{Type: cc.Type, Sequence: vals}, principal, action, resource, context)
+							if err != nil {
+								condEvalResult = SequenceItem{
+									Token:      ERROR,
+									Literal:    fmt.Sprintf("error whilst evaluating record value: %s", err.Error()),
+									Normalized: fmt.Sprintf("error whilst evaluating record value: %s", err.Error()),
+								}
+							}
+
+							record.RecordKeyValuePairs[rhs.Normalized] = condEvalResult
 							vals = []SequenceItem{}
 						}
 					} else {
@@ -1252,7 +1264,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			evalStack = evalStack[:len(evalStack)-1]
 
 			for rhs.Token != LEFT_SQB {
-				rawSet = append(rawSet, rhs)
+				rawSet = append(rawSet, rhs) // TODO: read until comma, recurse condEval
 				set = append(set, rhs.Normalized)
 				rhs = evalStack[len(evalStack)-1]
 				evalStack = evalStack[:len(evalStack)-1]
