@@ -1256,7 +1256,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
-			name: "if-then-else embedded",
+			name: "if-then-else embedded 1",
 			s: `
 			permit (
 				principal,
@@ -1280,6 +1280,86 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				resource
 			) when {
 				if true then if true then true else false else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "if-then-else embedded 3",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if false then true else if true then true else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "if-then-else embedded 1 wrapped",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if (if true then true else false) then true else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "if-then-else embedded 2 wrapped",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if true then (if true then true else false) else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "if-then-else embedded 3 wrapped",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if false then true else (if true then true else false)
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "if-then-else double embed",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if if if true then true else false then true else false then true else false
 			};`,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",

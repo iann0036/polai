@@ -280,9 +280,40 @@ PermitLoop:
 	return false, nil // implicit deny
 }
 
+func (e *Evaluator) wrapIfThenElse(sequenceItemList []SequenceItem) []SequenceItem {
+	i := 0
+	for i < len(sequenceItemList) {
+		if sequenceItemList[i].Token == IF {
+			// splice ( after
+			sequenceItemList = append(sequenceItemList[:i+2], sequenceItemList[i+1:]...)
+			sequenceItemList[i+1] = SequenceItem{Token: LEFT_PAREN, Literal: "(", Normalized: "("}
+			i++
+		} else if sequenceItemList[i].Token == THEN {
+			// splice ) before
+			sequenceItemList = append(sequenceItemList[:i+1], sequenceItemList[i:]...)
+			sequenceItemList[i] = SequenceItem{Token: RIGHT_PAREN, Literal: ")", Normalized: ")"}
+			// splice ( after
+			sequenceItemList = append(sequenceItemList[:i+3], sequenceItemList[i+2:]...)
+			sequenceItemList[i+2] = SequenceItem{Token: LEFT_PAREN, Literal: "(", Normalized: "("}
+			i += 2
+		} else if sequenceItemList[i].Token == ELSE {
+			// splice ) before
+			sequenceItemList = append(sequenceItemList[:i+1], sequenceItemList[i:]...)
+			sequenceItemList[i] = SequenceItem{Token: RIGHT_PAREN, Literal: ")", Normalized: ")"}
+			i++
+		}
+		i++
+	}
+
+	return sequenceItemList
+}
+
 func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, context string) (SequenceItem, error) {
 	var outputQueue []SequenceItem
 	var operatorStack []SequenceItem
+
+	// wrap the tokens between if -> then & then -> else to ensure embedded if-then-else may work
+	cc.Sequence = e.wrapIfThenElse(cc.Sequence)
 
 	// restructure to rpn using shunting yard, and set normalized if not set
 	for _, s := range cc.Sequence {
