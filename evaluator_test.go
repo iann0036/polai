@@ -1,6 +1,7 @@
 package polai_test
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -1458,7 +1459,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			principal:              "Principal::\"MyPrincipal\"",
 			action:                 "Action::\"MyAction\"",
 			resource:               "Resource::\"MyResource\"",
-			err:                    `invalid attribute access (no entities available): '\x1e' (30)`,
+			err:                    fmt.Sprintf(`invalid attribute access (no entities available): %q (%v)`, polai.PERIOD, polai.PERIOD),
 		},
 
 		{
@@ -1475,7 +1476,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			principal:              "Principal::\"MyPrincipal\"",
 			action:                 "Action::\"MyAction\"",
 			resource:               "Resource::\"MyResource\"",
-			err:                    `invalid attribute access (no entities available): '\x1e' (30)`,
+			err:                    fmt.Sprintf(`invalid attribute access (no entities available): %q (%v)`, polai.PERIOD, polai.PERIOD),
 		},
 
 		{
