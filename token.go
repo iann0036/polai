@@ -20,6 +20,7 @@ const (
 
 	ENTITY    // Namespace::"ID"
 	ATTRIBUTE // entity.attribute
+	RECORDKEY // {x: ...}
 	SET       // [...]
 	FUNCTION  // xyz()
 	RECORD    // {...}

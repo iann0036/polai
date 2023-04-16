@@ -41,6 +41,8 @@ type SequenceItem struct {
 	Token      Token
 	Literal    string
 	Normalized string
+
+	RecordKeyValuePairs map[string][]SequenceItem
 }
 
 // Parser represents a parser.
@@ -301,7 +303,7 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 		case IDENT:
 			if len(condClause.Sequence) < 1 || condClause.Sequence[len(condClause.Sequence)-1].Token != HAS {
 				p.unscan()
-				item, err := p.scanEntityOrFunction()
+				item, err := p.scanEntityOrFunctionOrRecordKey()
 				if err != nil {
 					return nil, err
 				}
@@ -403,8 +405,8 @@ func (p *Parser) scanEntity() (entityName string, err error) {
 	return entityName, nil
 }
 
-// scanEntityOrFunction scans an entity or function type
-func (p *Parser) scanEntityOrFunction() (item SequenceItem, err error) {
+// scanEntityOrFunctionOrRecordKey scans an entity, function or record key type
+func (p *Parser) scanEntityOrFunctionOrRecordKey() (item SequenceItem, err error) {
 	tok, lit := p.scanIgnoreWhitespace()
 	name := lit
 
@@ -419,8 +421,14 @@ func (p *Parser) scanEntityOrFunction() (item SequenceItem, err error) {
 			Literal:    name,
 			Normalized: name,
 		}, nil
-	}
-	if tok != NAMESPACE {
+	} else if tok == COLON {
+		p.unscan()
+		return SequenceItem{
+			Token:      RECORDKEY,
+			Literal:    name,
+			Normalized: name,
+		}, nil
+	} else if tok != NAMESPACE {
 		return SequenceItem{}, fmt.Errorf("found %q, expected namespace separator", lit)
 	}
 	name += "::"

@@ -781,6 +781,70 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
+			name: "anonymous record double key (pass)",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{xyz: false, xyz: true}.xyz
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "anonymous record double key (fail)",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{xyz: true, xyz: false}.xyz
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: false,
+		},
+
+		{
+			name: "bad comma use in record",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{xyz: true wxy: true}.xyz
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			err:       "TBD",
+		},
+
+		{
+			name: "bad comma use in record 2",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{xyz: true, wxy: true,}.xyz
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			err:       "TBD",
+		},
+
+		{
 			name: "context basic",
 			s: `
 			permit (
@@ -867,6 +931,32 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 				"l": ["def"]
 			}`,
 			err: "attribute not set",
+		},
+
+		{
+			name: "context mixed key access",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				context.w["x"].y["z"]
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			context: `
+			{
+				"w": {
+					"x": {
+						"y": {
+							"z": true
+						}
+					}
+				}
+			}`,
+			expectedResult: true,
 		},
 
 		{
@@ -1289,6 +1379,38 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
+			name: "bad comma use in set",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				[1, 2 3].contains(2)
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			err:       "TBD",
+		},
+
+		{
+			name: "bad comma use in set 2",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				[1, 2, 3,].contains(2)
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			err:       "TBD",
+		},
+
+		{
 			name: "if-then-else",
 			s: `
 			permit (
@@ -1478,7 +1600,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			principal:              "Principal::\"MyPrincipal\"",
 			action:                 "Action::\"MyAction\"",
 			resource:               "Resource::\"MyResource\"",
-			err:                    fmt.Sprintf(`invalid attribute access (no entities available): %q (%v)`, polai.PERIOD, polai.PERIOD),
+			err:                    fmt.Sprintf(`invalid attribute access (no entities available): (%v)`, polai.PERIOD),
 		},
 
 		{
@@ -1495,7 +1617,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			principal:              "Principal::\"MyPrincipal\"",
 			action:                 "Action::\"MyAction\"",
 			resource:               "Resource::\"MyResource\"",
-			err:                    fmt.Sprintf(`invalid attribute access (no entities available): %q (%v)`, polai.PERIOD, polai.PERIOD),
+			err:                    fmt.Sprintf(`invalid attribute access (no entities available): (%v)`, polai.PERIOD),
 		},
 
 		{

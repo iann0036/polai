@@ -162,7 +162,7 @@ ForbidLoop:
 				}
 
 				if condEvalResult.Token != TRUE && condEvalResult.Token != FALSE {
-					return false, fmt.Errorf("invalid stack state")
+					return false, fmt.Errorf("condition return is not boolean")
 				}
 
 				if stmtCondition.Type == WHEN && condEvalResult.Token == FALSE {
@@ -263,7 +263,7 @@ PermitLoop:
 				}
 
 				if condEvalResult.Token != TRUE && condEvalResult.Token != FALSE {
-					return false, fmt.Errorf("invalid stack state")
+					return false, fmt.Errorf("condition return is not boolean")
 				}
 
 				if stmtCondition.Type == WHEN && condEvalResult.Token == FALSE {
@@ -337,9 +337,15 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			outputQueue = append(outputQueue, s)
 		case LEFT_SQB:
 			outputQueue = append(outputQueue, s)
+		case LEFT_BRACE:
+			outputQueue = append(outputQueue, s)
 		case COMMA:
 			outputQueue = append(outputQueue, s)
+		case COLON:
+			operatorStack = append(outputQueue, s)
 		case RIGHT_SQB:
+			operatorStack = append(operatorStack, s)
+		case RIGHT_BRACE:
 			operatorStack = append(operatorStack, s)
 		case LEFT_PAREN:
 			operatorStack = append(operatorStack, s)
@@ -359,7 +365,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION, IF, THEN, ELSE:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION, IF, THEN, ELSE, RECORDKEY:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -367,7 +373,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			}
 			operatorStack = append(operatorStack, s)
 		default:
-			return SequenceItem{}, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
+			return SequenceItem{}, fmt.Errorf("unknown token: (%v)", s.Token)
 		}
 	}
 
@@ -386,7 +392,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	for _, s := range outputQueue {
 		switch s.Token {
 		case COMMA:
-		case TRUE, FALSE, LONG, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB:
+		case TRUE, FALSE, LONG, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB, LEFT_BRACE, COLON:
 			evalStack = append(evalStack, s)
 		case EXCLAMATION: // TODO: limit to 4x sequentially, also negation unary
 			rhs = evalStack[len(evalStack)-1]
@@ -651,8 +657,8 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				if e.es == nil {
 					evalStack = append(evalStack, SequenceItem{
 						Token:      ERROR,
-						Literal:    fmt.Sprintf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token),
-						Normalized: fmt.Sprintf("invalid attribute access (no entities available): %q (%v)", s.Token, s.Token),
+						Literal:    fmt.Sprintf("invalid attribute access (no entities available): (%v)", s.Token),
+						Normalized: fmt.Sprintf("invalid attribute access (no entities available): (%v)", s.Token),
 					})
 					continue
 				} else {
@@ -1184,6 +1190,60 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				})
 				continue
 			}
+		case RIGHT_BRACE:
+			record := SequenceItem{
+				Token: RECORD,
+			}
+			var vals []SequenceItem
+
+			rhs = evalStack[len(evalStack)-1]
+			evalStack = evalStack[:len(evalStack)-1]
+
+			for rhs.Token != LEFT_BRACE {
+				if rhs.Token == COLON {
+					rhs = evalStack[len(evalStack)-1]
+					evalStack = evalStack[:len(evalStack)-1]
+
+					if len(vals) == 0 {
+						evalStack = append(evalStack, SequenceItem{
+							Token:      ERROR,
+							Literal:    "error whilst processing record, nothing found for value",
+							Normalized: "error whilst processing record, nothing found for value",
+						})
+						continue
+					}
+
+					if rhs.Token == DBLQUOTESTR || rhs.Token == RECORDKEY {
+						_, ok := record.RecordKeyValuePairs[rhs.Normalized]
+						if !ok {
+							record.RecordKeyValuePairs[rhs.Normalized] = vals
+							vals = []SequenceItem{}
+						}
+					} else {
+						evalStack = append(evalStack, SequenceItem{
+							Token:      ERROR,
+							Literal:    "error whilst processing record, non-string key",
+							Normalized: "error whilst processing record, non-string key",
+						})
+						continue
+					}
+				} else {
+					vals = append(vals, rhs)
+				}
+				rhs = evalStack[len(evalStack)-1]
+				evalStack = evalStack[:len(evalStack)-1]
+			}
+
+			if len(vals) == 0 {
+				evalStack = append(evalStack, SequenceItem{
+					Token:      ERROR,
+					Literal:    "error whilst processing record",
+					Normalized: "error whilst processing record",
+				})
+				continue
+			}
+
+			evalStack = append(evalStack, record)
 		case RIGHT_SQB:
 			var rawSet []SequenceItem
 			var set []string
@@ -1260,8 +1320,8 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			} else {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      ERROR,
-					Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-					Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+					Literal:    fmt.Sprintf("unknown token near like: (%v)", s.Token),
+					Normalized: fmt.Sprintf("unknown token near like: (%v)", s.Token),
 				})
 				continue
 			}
@@ -1324,8 +1384,8 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			} else {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      ERROR,
-					Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-					Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+					Literal:    fmt.Sprintf("unknown token near in: (%v)", s.Token),
+					Normalized: fmt.Sprintf("unknown token near in: (%v)", s.Token),
 				})
 				continue
 			}
@@ -1382,16 +1442,16 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				} else {
 					evalStack = append(evalStack, SequenceItem{
 						Token:      ERROR,
-						Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-						Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+						Literal:    fmt.Sprintf("unknown token near has: (%v)", s.Token),
+						Normalized: fmt.Sprintf("unknown token near has: (%v)", s.Token),
 					})
 					continue
 				}
 			} else {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      ERROR,
-					Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-					Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+					Literal:    fmt.Sprintf("unknown token near has: (%v)", s.Token),
+					Normalized: fmt.Sprintf("unknown token near has: (%v)", s.Token),
 				})
 				continue
 			}
@@ -1503,16 +1563,16 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				} else {
 					evalStack = append(evalStack, SequenceItem{
 						Token:      ERROR,
-						Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-						Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+						Literal:    fmt.Sprintf("unknown token near comparitor or math operator: (%v)", s.Token),
+						Normalized: fmt.Sprintf("unknown token near comparitor or math operator: (%v)", s.Token),
 					})
 					continue
 				}
 			} else {
 				evalStack = append(evalStack, SequenceItem{
 					Token:      ERROR,
-					Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-					Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+					Literal:    fmt.Sprintf("unknown token near comparitor or math operator: (%v)", s.Token),
+					Normalized: fmt.Sprintf("unknown token near comparitor or math operator: (%v)", s.Token),
 				})
 				continue
 			}
@@ -1795,8 +1855,8 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				} else {
 					evalStack = append(evalStack, SequenceItem{
 						Token:      ERROR,
-						Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-						Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+						Literal:    fmt.Sprintf("unknown token near and: (%v)", s.Token),
+						Normalized: fmt.Sprintf("unknown token near and: (%v)", s.Token),
 					})
 					continue
 				}
@@ -1834,18 +1894,19 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				} else {
 					evalStack = append(evalStack, SequenceItem{
 						Token:      ERROR,
-						Literal:    fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
-						Normalized: fmt.Sprintf("unknown token: %q (%v)", s.Token, s.Token),
+						Literal:    fmt.Sprintf("unknown token near or: (%v)", s.Token),
+						Normalized: fmt.Sprintf("unknown token near or: (%v)", s.Token),
 					})
 					continue
 				}
 			}
 		default:
-			return SequenceItem{}, fmt.Errorf("unknown token: %q (%v)", s.Token, s.Token)
+			return SequenceItem{}, fmt.Errorf("unknown token: (%v)", s.Token)
 		}
 	}
 
 	if len(evalStack) != 1 {
+		fmt.Println(evalStack)
 		return SequenceItem{}, fmt.Errorf("invalid stack state")
 	}
 
