@@ -355,7 +355,7 @@ func (p *Parser) scanConditionClause(condType Token) (condClause *ConditionClaus
 				Literal:    lit,
 				Normalized: strings.TrimSuffix(strings.TrimPrefix(lit, "\""), "\""),
 			})
-		case TRUE, FALSE, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE:
+		case TRUE, FALSE, PRINCIPAL, ACTION, RESOURCE, CONTEXT, LEFT_SQB, LEFT_PAREN, RIGHT_SQB, RIGHT_PAREN, COMMA, HAS, LIKE, EQUALITY, INEQUALITY, LT, LTE, GT, GTE, IN, EXCLAMATION, DASH, PLUS, MULTIPLIER, AND, OR, IF, THEN, ELSE, COLON:
 			condClause.Sequence = append(condClause.Sequence, SequenceItem{
 				Token:      tok,
 				Literal:    lit,

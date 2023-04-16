@@ -5,12 +5,14 @@ type Token int
 
 const (
 	// Special tokens
+
 	ILLEGAL Token = iota
 	EOF
 	WHITESPC
 	ERROR
 
 	// Literals
+
 	IDENT       // unknown identifier
 	LONG        // 123 | -123
 	DBLQUOTESTR // "...abc..."
@@ -20,6 +22,7 @@ const (
 	ATTRIBUTE // entity.attribute
 	SET       // [...]
 	FUNCTION  // xyz()
+	RECORD    // {...}
 
 	ELSE_TRUE
 	ELSE_FALSE
@@ -33,10 +36,12 @@ const (
 	THEN_ERROR_ELSE_FALSE
 
 	// Extensions
+
 	IP
 	DECIMAL
 
 	// Misc characters
+
 	LEFT_PAREN  // (
 	RIGHT_PAREN // )
 	LEFT_SQB    // [
@@ -52,8 +57,10 @@ const (
 	DASH        // -
 	PLUS        // +
 	MULTIPLIER  // *
+	COLON       // :
 
 	// Misc
+
 	NAMESPACE  // ::
 	EQUALITY   // ==
 	INEQUALITY // !=
@@ -63,6 +70,7 @@ const (
 	OR         // ||
 
 	// Keywords
+
 	PERMIT
 	FORBID
 	WHEN

@@ -732,6 +732,35 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
+			name: "anonymous record quoted key access",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{"xyz": true}.xyz
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			context: `
+			{
+				"s": "abc",
+				"i": 123,
+				"b": true,
+				"r": {
+					"s": "abc",
+					"i": 123,
+					"b": true,
+					"l": ["def"]
+				},
+				"l": ["def"]
+			}`,
+			expectedResult: true,
+		},
+
+		{
 			name: "context basic",
 			s: `
 			permit (
@@ -761,7 +790,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
-			name: "context",
+			name: "context advanced",
 			s: `
 			permit (
 				principal,
@@ -821,7 +850,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
-			name: "Short-circuit processing",
+			name: "short-circuit processing",
 			s: `
 			permit (
 				principal,
@@ -838,7 +867,7 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
-			name: "Short-circuit processing, short-circuit disabled",
+			name: "short-circuit processing, short-circuit disabled",
 			s: `
 			permit (
 				principal,

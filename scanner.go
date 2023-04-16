@@ -74,7 +74,6 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 			return LTE, lit
 		}
 		s.unread()
-
 		return LT, lit
 	case '>':
 		ch = s.read()
@@ -123,18 +122,20 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 		}
 	case '!':
 		ch = s.read()
-		lit += string(ch)
 		if ch == '=' {
+			lit += string(ch)
 			return INEQUALITY, lit
 		}
 		s.unread()
 		return EXCLAMATION, lit
 	case ':':
 		ch = s.read()
-		lit += string(ch)
 		if ch == ':' {
+			lit += string(ch)
 			return NAMESPACE, lit
 		}
+		s.unread()
+		return COLON, lit
 	case '&':
 		ch = s.read()
 		lit += string(ch)
