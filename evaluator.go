@@ -33,7 +33,7 @@ var OP_PRECEDENCE = map[Token]int{
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
-	OR:          true, // annoying quirk where rhs isn't evaluated if lhs is true
+	OR:          true, // to allow for custom short-circuiting logic
 	LT:          true,
 	LTE:         true,
 	GT:          true,
