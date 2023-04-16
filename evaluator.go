@@ -1215,7 +1215,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 
 					if rhs.Token == DBLQUOTESTR || rhs.Token == RECORDKEY {
 						_, ok := record.RecordKeyValuePairs[rhs.Normalized]
-						if !ok {
+						if !ok { // set only if not already set
 							record.RecordKeyValuePairs[rhs.Normalized] = vals
 							vals = []SequenceItem{}
 						}
@@ -1906,7 +1906,6 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	}
 
 	if len(evalStack) != 1 {
-		fmt.Println(evalStack)
 		return SequenceItem{}, fmt.Errorf("invalid stack state")
 	}
 
