@@ -7,7 +7,7 @@ A [Cedar](https://www.cedarpolicy.com/) policy language lexer, parser & evaluato
 ## Installation
 
 ```sh
-$ go get github.com/iann0036/polai
+go get github.com/iann0036/polai
 ```
 
 Please add `-u` flag to update in the future.
@@ -27,12 +27,29 @@ import (
 func main() {
     e := polai.NewEvaluator(strings.NewReader(`
     permit (
-        principal == User::"alice",
+        principal,
         action,
         resource == Folder::"My Folder"
     ) when {
-        context.ssl == true
+        context.ssl == true && principal.hasTraining
     };`))
+
+    e.SetEntities(strings.NewReader(`
+    [
+        {
+            "uid": "User::\"alice\"",
+            "attrs": {
+                "hasTraining": true
+            }
+        },
+        {
+            "uid": "User::\"kate\"",
+            "attrs": {
+                "hasTraining": false
+            }
+        }
+    ]`)) // optional
+
     result, _ := e.Evaluate(`User::"alice"`, `Action::"listFiles"`, `Folder::"My Folder"`, `{
         "ssl": true
     }`)
@@ -67,10 +84,11 @@ func main() {
 - [x] Enforce `Action::` namespace for actions
 - [x] `&&` and `||` short-circuiting
 - [x] `if-then-else` short-circuiting
+- [ ] 4x limit on unary
 - [ ] Embedded `if-then-else`
 - [ ] Syntactic constraint on multiply operator
-- [ ] Anonymous records
-- [ ] `__expr` syntax in context / entities
+- [ ] Anonymous records / sets
+- [ ] `__entity` / `__extn` syntax in context / entities
 - [ ] Policy templates
 
 ## License

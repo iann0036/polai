@@ -11,6 +11,7 @@ import (
 // Ensure the evaluator produces correct results.
 func TestEvaluator_EvaluateStatement(t *testing.T) {
 	var tests = []struct {
+		name                   string
 		s                      string
 		disableShortCircuiting bool
 		expectedResult         bool
@@ -21,8 +22,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		entities               string
 		err                    string
 	}{
-		// Literally nothing
 		{
+			name:           "Literally nothing",
 			s:              ``,
 			principal:      "Principal::\"MyPrincipal\"",
 			action:         "Action::\"MyAction\"",
@@ -30,8 +31,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Basic permit
 		{
+			name: "Basic permit",
 			s: `
 			permit (
 				principal,
@@ -44,8 +45,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Basic forbid
 		{
+			name: "Basic forbid",
 			s: `
 			forbid (
 				principal,
@@ -58,8 +59,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Multiple statements
 		{
+			name: "Multiple statements",
 			s: `
 			permit (
 				principal,
@@ -77,8 +78,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Comments
 		{
+			name: "Comments",
 			s: `
 			// comment stuff
 			permit (
@@ -93,8 +94,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Scope with equality
 		{
+			name: "Scope with equality",
 			s: `
 			permit (
 				principal == Namespace::"Identifier",
@@ -107,8 +108,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Enforce scope check
 		{
+			name: "Enforce scope check",
 			s: `
 			permit (
 				principal,
@@ -121,8 +122,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			err:       "actions in scope must use Action:: namespace",
 		},
 
-		// Scope with in set
 		{
+			name: "Scope with in set",
 			s: `
 			permit (
 				principal,
@@ -135,8 +136,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Scope with in set (implied)
 		{
+			name: "Scope with in set (implied)",
 			s: `
 			permit (
 				principal,
@@ -149,8 +150,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Scope with in entity
 		{
+			name: "Scope with in entity",
 			s: `
 			permit (
 				principal in Namespace::"Identifier",
@@ -163,8 +164,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Scope with in entity (self)
 		{
+			name: "Scope with in entity (self)",
 			s: `
 			permit (
 				principal in Namespace::"Identifier",
@@ -177,8 +178,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Basic when with int equality
 		{
+			name: "Basic when with int equality",
 			s: `
 			permit (
 				principal,
@@ -193,8 +194,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Basic when with literal true
 		{
+			name: "Basic when with literal true",
 			s: `
 			permit (
 				principal,
@@ -209,8 +210,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Basic when with int equality (failure)
 		{
+			name: "Basic when with int equality (failure)",
 			s: `
 			permit (
 				principal,
@@ -225,8 +226,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Basic with negation
 		{
+			name: "Basic with negation",
 			s: `
 			permit (
 				principal,
@@ -241,8 +242,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Basic with negation 2
 		{
+			name: "Basic with negation 2",
 			s: `
 			permit (
 				principal,
@@ -257,8 +258,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Basic with negation 3
 		{
+			name: "Basic with negation 3",
 			s: `
 			permit (
 				principal,
@@ -273,8 +274,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Mix type equality
 		{
+			name: "Mix type equality",
 			s: `
 			permit (
 				principal,
@@ -289,8 +290,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// like operator
 		{
+			name: "like operator",
 			s: `
 			permit (
 				principal,
@@ -310,8 +311,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Mix eventual types
 		{
+			name: "Mix eventual types",
 			s: `
 			permit (
 				principal,
@@ -326,8 +327,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Complex long operators
 		{
+			name: "Complex long operators",
 			s: `
 			permit (
 				principal,
@@ -342,8 +343,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Boolean logic with parameter groups
 		{
+			name: "Boolean logic with parameter groups",
 			s: `
 			permit (
 				principal,
@@ -358,8 +359,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Math order of operations
 		{
+			name: "Math order of operations",
 			s: `
 			permit (
 				principal,
@@ -374,8 +375,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Entity equality
 		{
+			name: "Entity equality",
 			s: `
 			permit (
 				principal,
@@ -390,8 +391,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Entity inequality
 		{
+			name: "Entity inequality",
 			s: `
 			permit (
 				principal,
@@ -406,8 +407,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Entity in (self)
 		{
+			name: "Entity in (self)",
 			s: `
 			permit (
 				principal,
@@ -422,8 +423,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Mismatch type equality
 		{
+			name: "Mismatch type equality",
 			s: `
 			permit (
 				principal,
@@ -438,8 +439,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Mismatch type inequality
 		{
+			name: "Mismatch type inequality",
 			s: `
 			permit (
 				principal,
@@ -454,8 +455,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// in operator (scope)
 		{
+			name: "in operator (scope)",
 			s: `
 			permit (
 				principal in Principal::"Parent",
@@ -489,8 +490,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// in operator (scope, with square bracket)
 		{
+			name: "in operator (scope, with square bracket)",
 			s: `
 			permit (
 				principal in Principal::"Parent",
@@ -524,8 +525,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// in operator (scope, invariant)
 		{
+			name: "in operator (scope, invariant)",
 			s: `
 			permit (
 				principal in Principal::"MyPrincipal",
@@ -559,8 +560,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// in operator (condition)
 		{
+			name: "in operator (condition)",
 			s: `
 			permit (
 				principal,
@@ -598,8 +599,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// in operator (scope, deep)
 		{
+			name: "in operator (scope, deep)",
 			s: `
 			permit (
 				principal in Principal::"Grandparent",
@@ -651,8 +652,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// when double
 		{
+			name: "when double",
 			s: `
 			permit (
 				principal,
@@ -673,8 +674,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// in operator (condition, deep)
 		{
+			name: "in operator (condition, deep)",
 			s: `
 			permit (
 				principal,
@@ -730,8 +731,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// context basic
 		{
+			name: "context basic",
 			s: `
 			permit (
 				principal,
@@ -759,8 +760,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// context
 		{
+			name: "context",
 			s: `
 			permit (
 				principal,
@@ -790,8 +791,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// context unset
 		{
+			name: "context unset",
 			s: `
 			permit (
 				principal,
@@ -819,8 +820,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			err: "attribute not set",
 		},
 
-		// Short-circuit processing
 		{
+			name: "Short-circuit processing",
 			s: `
 			permit (
 				principal,
@@ -836,8 +837,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Short-circuit processing, short-circuit disabled
 		{
+			name: "Short-circuit processing, short-circuit disabled",
 			s: `
 			permit (
 				principal,
@@ -854,8 +855,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			err:                    "attribute not set",
 		},
 
-		// entity attributes
 		{
+			name: "entity attributes",
 			s: `
 			permit (
 				principal,
@@ -920,8 +921,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// entity attributes (deep)
 		{
+			name: "entity attributes (deep)",
 			s: `
 			permit (
 				principal,
@@ -986,8 +987,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// entity has
 		{
+			name: "entity has",
 			s: `
 			permit (
 				principal,
@@ -1050,8 +1051,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// IP Function
 		{
+			name: "IP Function",
 			s: `
 			permit (
 				principal,
@@ -1066,8 +1067,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// IP Function (negate)
 		{
+			name: "IP Function (negate)",
 			s: `
 			permit (
 				principal,
@@ -1082,8 +1083,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// IP Function isInRange
 		{
+			name: "IP Function isInRange",
 			s: `
 			permit (
 				principal,
@@ -1098,8 +1099,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// IP Function basic bool checks
 		{
+			name: "IP Function basic bool checks",
 			s: `
 			permit (
 				principal,
@@ -1117,8 +1118,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Decimal Function
 		{
+			name: "Decimal Function",
 			s: `
 			permit (
 				principal,
@@ -1133,8 +1134,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// Decimal Function (negate)
 		{
+			name: "Decimal Function (negate)",
 			s: `
 			permit (
 				principal,
@@ -1149,8 +1150,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// Decimal Function basic bool checks
 		{
+			name: "Decimal Function basic bool checks",
 			s: `
 			permit (
 				principal,
@@ -1168,8 +1169,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// contains from attribute
 		{
+			name: "contains from attribute",
 			s: `
 			permit (
 				principal,
@@ -1204,8 +1205,35 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// contains from square brackets
 		{
+			name: "generic entity test (a)",
+			s: `
+			permit(principal, action, resource);
+			forbid(principal, action, resource)
+			when { resource.tags.contains("private") } unless { resource in principal.account };`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			entities: `
+			[
+				{
+					"uid": "Principal::\"MyPrincipal\"",
+					"attrs": {
+						"account": "Resource::\"MyResource\"",
+					}
+				},
+				{
+					"uid": "Resource::\"MyResource\"",
+					"attrs": {
+						"tags": ["private"]
+					}
+				}
+			]`,
+			expectedResult: true,
+		},
+
+		{
+			name: "contains from square brackets",
 			s: `
 			permit (
 				principal,
@@ -1222,8 +1250,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// contains from square brackets (negate)
 		{
+			name: "contains from square brackets (negate)",
 			s: `
 			permit (
 				principal,
@@ -1238,8 +1266,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// if-then-else
 		{
+			name: "if-then-else",
 			s: `
 			permit (
 				principal,
@@ -1254,8 +1282,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// if-then-else embedded
 		{
+			name: "if-then-else embedded",
 			s: `
 			permit (
 				principal,
@@ -1270,8 +1298,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// if-then-else embedded 2
 		{
+			name: "if-then-else embedded 2",
 			s: `
 			permit (
 				principal,
@@ -1286,8 +1314,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// if-then-else (negate)
 		{
+			name: "if-then-else (negate)",
 			s: `
 			permit (
 				principal,
@@ -1302,8 +1330,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
-		// if-then-else shortcircuit true
 		{
+			name: "if-then-else shortcircuit true",
 			s: `
 			permit (
 				principal,
@@ -1318,8 +1346,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// if-then-else shortcircuit false
 		{
+			name: "if-then-else shortcircuit false",
 			s: `
 			permit (
 				principal,
@@ -1334,8 +1362,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
-		// if-then-else shortcircuit true (shortcircuit disabled)
 		{
+			name: "if-then-else shortcircuit true (shortcircuit disabled)",
 			s: `
 			permit (
 				principal,
@@ -1351,8 +1379,8 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			err:                    `invalid attribute access (no entities available): '\x1e' (30)`,
 		},
 
-		// if-then-else shortcircuit false (shortcircuit disabled)
 		{
+			name: "if-then-else shortcircuit false (shortcircuit disabled)",
 			s: `
 			permit (
 				principal,
@@ -1368,8 +1396,11 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			err:                    `invalid attribute access (no entities available): '\x1e' (30)`,
 		},
 
-		// Errors
-		{s: `foo`, err: `found "foo", expected permit or forbid`},
+		{
+			name: "Errors",
+			s:    `foo`,
+			err:  `found "foo", expected permit or forbid`,
+		},
 	}
 
 	for i, tt := range tests {
@@ -1382,9 +1413,9 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		}
 		result, err := e.Evaluate(tt.principal, tt.action, tt.resource, tt.context)
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
-			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
+			t.Errorf("%d. %s\n%q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.name, tt.s, tt.err, err)
 		} else if tt.err == "" && tt.expectedResult != result {
-			t.Errorf("%d. %q\n\result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.expectedResult, result)
+			t.Errorf("%d. %s\n%q\n\result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.name, tt.s, tt.expectedResult, result)
 		}
 	}
 }

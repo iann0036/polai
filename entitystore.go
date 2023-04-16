@@ -76,7 +76,7 @@ func (e *EntityStore) GetEntities() ([]Entity, error) {
 
 		var rawEntities []rawEntity
 		if err := json.Unmarshal(b, &rawEntities); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing entity store json, %s", err.Error())
 		}
 
 		var entities []Entity
