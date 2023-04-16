@@ -1270,6 +1270,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: true,
 		},
 
+		// if-then-else embedded 2
+		{
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				if true then if true then true else false else false
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
 		// if-then-else (negate)
 		{
 			s: `
