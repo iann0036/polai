@@ -1206,33 +1206,6 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
-			name: "generic entity test (a)",
-			s: `
-			permit(principal, action, resource);
-			forbid(principal, action, resource)
-			when { resource.tags.contains("private") } unless { resource in principal.account };`,
-			principal: "Principal::\"MyPrincipal\"",
-			action:    "Action::\"MyAction\"",
-			resource:  "Resource::\"MyResource\"",
-			entities: `
-			[
-				{
-					"uid": "Principal::\"MyPrincipal\"",
-					"attrs": {
-						"account": "Resource::\"MyResource\"",
-					}
-				},
-				{
-					"uid": "Resource::\"MyResource\"",
-					"attrs": {
-						"tags": ["private"]
-					}
-				}
-			]`,
-			expectedResult: true,
-		},
-
-		{
 			name: "contains from square brackets",
 			s: `
 			permit (

@@ -14,6 +14,8 @@ Please add `-u` flag to update in the future.
 
 ## Usage
 
+### Basic Usage
+
 ```go
 package main
 
@@ -31,8 +33,46 @@ func main() {
         action,
         resource == Folder::"My Folder"
     ) when {
-        context.ssl == true && principal.hasTraining
+        context.ssl == true
     };`))
+
+    result, _ := e.Evaluate(`User::"alice"`, `Action::"listFiles"`, `Folder::"My Folder"`, `{
+        "ssl": true
+    }`)
+
+    if result {
+        fmt.Println("Authorized")
+    } else {
+        fmt.Println("Not Authorized")
+    }
+}
+```
+
+### Advanced Options
+
+```go
+package main
+
+import (
+    "fmt"
+    "strings"
+
+    "github.com/iann0036/polai"
+)
+
+func main() {
+    e := polai.NewEvaluator(strings.NewReader(`
+    permit (
+        principal,
+        action,
+        resource == Folder::"My Folder"
+    ) when {
+        if context.ssl == true && principal.hasTraining
+        then true
+        else principal.invalidproperty
+    };`))
+
+    e.AllowShortCircuiting = true // evaluation will fail when set to false
 
     e.SetEntities(strings.NewReader(`
     [
@@ -48,7 +88,7 @@ func main() {
                 "hasTraining": false
             }
         }
-    ]`)) // optional
+    ]`))
 
     result, _ := e.Evaluate(`User::"alice"`, `Action::"listFiles"`, `Folder::"My Folder"`, `{
         "ssl": true
@@ -84,8 +124,8 @@ func main() {
 - [x] Enforce `Action::` namespace for actions
 - [x] `&&` and `||` short-circuiting
 - [x] `if-then-else` short-circuiting
-- [ ] 4x limit on unary
 - [ ] Embedded `if-then-else`
+- [ ] 4x limit on unary
 - [ ] Syntactic constraint on multiply operator
 - [ ] Anonymous records / sets
 - [ ] `__entity` / `__extn` syntax in context / entities
