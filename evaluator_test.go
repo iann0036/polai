@@ -742,22 +742,41 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			) when {
 				{"xyz": true}.xyz
 			};`,
-			principal: "Principal::\"MyPrincipal\"",
-			action:    "Action::\"MyAction\"",
-			resource:  "Resource::\"MyResource\"",
-			context: `
-			{
-				"s": "abc",
-				"i": 123,
-				"b": true,
-				"r": {
-					"s": "abc",
-					"i": 123,
-					"b": true,
-					"l": ["def"]
-				},
-				"l": ["def"]
-			}`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "anonymous record unquoted key access",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{xyz: true}.xyz
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
+			expectedResult: true,
+		},
+
+		{
+			name: "anonymous record quoted nested mixed key access",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				{"w": {"x": {"y": {"z": true}}}}.w["x"].y["z"]
+			};`,
+			principal:      "Principal::\"MyPrincipal\"",
+			action:         "Action::\"MyAction\"",
+			resource:       "Resource::\"MyResource\"",
 			expectedResult: true,
 		},
 
