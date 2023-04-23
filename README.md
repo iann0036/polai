@@ -124,7 +124,7 @@ func main() {
 - [x] Enforce `Action::` namespace for actions
 - [x] `&&` and `||` short-circuiting
 - [x] `if-then-else` short-circuiting
-- [ ] Embedded `if-then-else`
+- [x] Embedded `if-then-else`
 - [ ] 4x limit on unary
 - [ ] Syntactic constraint on multiply operator
 - [ ] Anonymous records / sets

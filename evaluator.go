@@ -1264,7 +1264,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			evalStack = evalStack[:len(evalStack)-1]
 
 			for rhs.Token != LEFT_SQB {
-				rawSet = append(rawSet, rhs) // TODO: read until comma, recurse condEval
+				rawSet = append(rawSet, rhs) // TODO: read until comma, recurse condEval & ensure no trailing comma / commas between elements
 				set = append(set, rhs.Normalized)
 				rhs = evalStack[len(evalStack)-1]
 				evalStack = evalStack[:len(evalStack)-1]

@@ -1378,6 +1378,121 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 			expectedResult: false,
 		},
 
+		/*
+			TODO:
+			{
+				name: "complex in square brackets",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					[if true then 3 else 4, if false then 5 else 2, if true then 6 else 7].contains(2)
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+
+			{
+				name: "set equality",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					[1, 2, 3] == [1, 2, 3]
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+
+			{
+				name: "set equality unordered",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					[1, 2, 3] == [2, 3, 1]
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+
+			{
+				name: "set equality empty",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					[] == []
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+
+			{
+				name: "set equality mixed",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					[{}, 1, true, {"xyz": 123}, "abc"] == [{"xyz": 123}, true, 1, {}, "abc"]
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+
+			{
+				name: "record equality",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					{"xyz": 123} == {"xyz": 123}
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+
+			{
+				name: "record equality unordered mixed",
+				s: `
+				permit (
+					principal,
+					action,
+					resource
+				) when {
+					{"xyz": 123, 345: false} == {345: false, "xyz": 123}
+				};`,
+				principal:      "Principal::\"MyPrincipal\"",
+				action:         "Action::\"MyAction\"",
+				resource:       "Resource::\"MyResource\"",
+				expectedResult: true,
+			},
+		*/
+
 		{
 			name: "bad comma use in set",
 			s: `
