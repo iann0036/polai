@@ -30,6 +30,7 @@ var OP_PRECEDENCE = map[Token]int{
 	PERIOD:      6,
 	FUNCTION:    7,
 	RIGHT_SQB:   7,
+	RIGHT_BRACE: 7,
 }
 
 var LEFT_ASSOCIATIVE = map[Token]bool{
@@ -44,6 +45,8 @@ var LEFT_ASSOCIATIVE = map[Token]bool{
 	EXCLAMATION: true,
 	PERIOD:      true,
 	FUNCTION:    true,
+	RIGHT_SQB:   true,
+	RIGHT_BRACE: true,
 }
 
 // Evaluator represents an evaluator.
@@ -341,8 +344,10 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			outputQueue = append(outputQueue, s)
 		case COMMA:
 			outputQueue = append(outputQueue, s)
+		case RECORDKEY:
+			outputQueue = append(outputQueue, s)
 		case COLON:
-			operatorStack = append(outputQueue, s)
+			outputQueue = append(outputQueue, s)
 		case RIGHT_SQB:
 			operatorStack = append(operatorStack, s)
 		case RIGHT_BRACE:
@@ -365,7 +370,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					break
 				}
 			}
-		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION, IF, THEN, ELSE, RECORDKEY:
+		case EQUALITY, INEQUALITY, AND, OR, LT, LTE, GT, GTE, PLUS, DASH, MULTIPLIER, IN, HAS, LIKE, PERIOD, EXCLAMATION, IF, THEN, ELSE:
 			for len(operatorStack) > 0 && OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] != 0 && (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] > OP_PRECEDENCE[s.Token] || (OP_PRECEDENCE[operatorStack[len(operatorStack)-1].Token] == OP_PRECEDENCE[s.Token] && LEFT_ASSOCIATIVE[s.Token])) {
 				pop := operatorStack[len(operatorStack)-1]
 				operatorStack = operatorStack[:len(operatorStack)-1]
@@ -373,7 +378,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			}
 			operatorStack = append(operatorStack, s)
 		default:
-			return SequenceItem{}, fmt.Errorf("unknown token: (%v)", s.Token)
+			return SequenceItem{}, fmt.Errorf("unknown token during restructure: (%v)", s.Token)
 		}
 	}
 
@@ -386,13 +391,21 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 		outputQueue = append(outputQueue, pop)
 	}
 
+	fmt.Println("--")
+	fmt.Println(cc.ToString())
+	fmt.Println(outputQueue)
+
 	var evalStack []SequenceItem
 	var lhs SequenceItem
 	var rhs SequenceItem
+	fmt.Println("###")
+	fmt.Println(outputQueue)
 	for _, s := range outputQueue {
+		fmt.Println(evalStack)
+
 		switch s.Token {
 		case COMMA:
-		case TRUE, FALSE, LONG, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB, LEFT_BRACE, COLON:
+		case TRUE, FALSE, LONG, DBLQUOTESTR, ENTITY, ATTRIBUTE, CONTEXT, LEFT_SQB, LEFT_BRACE, COLON, RECORDKEY:
 			evalStack = append(evalStack, s)
 		case EXCLAMATION: // TODO: limit to 4x sequentially, also negation unary
 			rhs = evalStack[len(evalStack)-1]
@@ -677,6 +690,17 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				}
 			} else if lhs.Token == ATTRIBUTE && rhs.Token == ATTRIBUTE {
 				item, err := e.getAttributeAttributeSequenceItem(lhs.Normalized, rhs.Normalized)
+				if err != nil {
+					evalStack = append(evalStack, SequenceItem{
+						Token:      ERROR,
+						Literal:    err.Error(),
+						Normalized: err.Error(),
+					})
+					continue
+				}
+				evalStack = append(evalStack, item)
+			} else if lhs.Token == RECORD && rhs.Token == ATTRIBUTE {
+				item, err := e.getRecordAttributeSequenceItem(lhs.RecordKeyValuePairs, rhs.Normalized)
 				if err != nil {
 					evalStack = append(evalStack, SequenceItem{
 						Token:      ERROR,
@@ -1202,7 +1226,10 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 			evalStack = evalStack[:len(evalStack)-1]
 
 			for rhs.Token != LEFT_BRACE {
-				if rhs.Token == COLON {
+				if rhs.Token == COMMA {
+					rhs = evalStack[len(evalStack)-1]
+					evalStack = evalStack[:len(evalStack)-1]
+				} else if rhs.Token == COLON {
 					rhs = evalStack[len(evalStack)-1]
 					evalStack = evalStack[:len(evalStack)-1]
 
@@ -1216,6 +1243,10 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 					}
 
 					if rhs.Token == DBLQUOTESTR || rhs.Token == RECORDKEY {
+						if record.RecordKeyValuePairs == nil {
+							record.RecordKeyValuePairs = map[string]SequenceItem{}
+						}
+
 						_, ok := record.RecordKeyValuePairs[rhs.Normalized]
 						if !ok { // set only if not already set
 							// evaluate the inner expr value
@@ -1246,7 +1277,9 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 				evalStack = evalStack[:len(evalStack)-1]
 			}
 
-			if len(vals) == 0 {
+			if len(vals) != 0 {
+				fmt.Println("&&&&")
+				fmt.Println(vals)
 				evalStack = append(evalStack, SequenceItem{
 					Token:      ERROR,
 					Literal:    "error whilst processing record",
@@ -1918,6 +1951,7 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	}
 
 	if len(evalStack) != 1 {
+		fmt.Println(evalStack)
 		return SequenceItem{}, fmt.Errorf("invalid stack state")
 	}
 
@@ -1926,6 +1960,16 @@ func (e *Evaluator) condEval(cc ConditionClause, principal, action, resource, co
 	}
 
 	return evalStack[0], nil
+}
+
+func (e *Evaluator) getRecordAttributeSequenceItem(recordKeyValuePairs map[string]SequenceItem, attributeName string) (SequenceItem, error) {
+	for k, v := range recordKeyValuePairs {
+		if k == attributeName {
+			return v, nil
+		}
+	}
+
+	return SequenceItem{}, fmt.Errorf("attribute not set")
 }
 
 func (e *Evaluator) getEntityAttributeSequenceItem(entityName, attributeName string) (SequenceItem, error) {

@@ -1526,6 +1526,22 @@ func TestEvaluator_EvaluateStatement(t *testing.T) {
 		},
 
 		{
+			name: "bad comma use in set 3",
+			s: `
+			permit (
+				principal,
+				action,
+				resource
+			) when {
+				[,1, 2, 3].contains(2)
+			};`,
+			principal: "Principal::\"MyPrincipal\"",
+			action:    "Action::\"MyAction\"",
+			resource:  "Resource::\"MyResource\"",
+			err:       "TBD",
+		},
+
+		{
 			name: "if-then-else",
 			s: `
 			permit (

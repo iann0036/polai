@@ -1,5 +1,14 @@
 # polai
 
+> **Warning**
+> This project is experimental and is not recommended for use
+
+## Foreword
+
+This project was an experimental project to understand the complexity of the [Cedar policy language](https://www.cedarpolicy.com/). The project is incomplete and doesn't feature the automated reasoning guarantees that the official engine has. For use in a production context, consume the official engine [directly](https://github.com/cedar-policy/cedar) or via one of the [bindings](https://github.com/cedar-policy/cedar-awesome#language-and-platform-integrations).
+
+<hr />
+
 [![GoDoc](https://godoc.org/github.com/iann0036/polai?status.svg)](https://godoc.org/github.com/iann0036/polai)
 
 A [Cedar](https://www.cedarpolicy.com/) policy language lexer, parser & evaluator.
